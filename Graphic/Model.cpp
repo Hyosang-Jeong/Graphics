@@ -1,20 +1,11 @@
-#define _CRT_SECURE_NO_WARNINGS
 #include"Model.h"
 #include <glm/gtc/matrix_transform.hpp> //translate, rotate, scale, perspective 
-
 #include<glm/gtc/constants.hpp>
 #include<map>
 #include<algorithm>
 #include<fstream>
 #include<iostream>
-void Model::init(std::string shader, glm::vec3 , glm::vec3 , glm::vec3 Rotate)
-{
-   // position = Pos;
-   // scale = Scale;
-    rotation = Rotate;
-    setup_shdrpgm(shader);
-  //  SendVertexData();
-}
+
 
 void Model::addVertex(const Vertex& v)
 {
@@ -102,73 +93,6 @@ void Model::BuildIndexBuffer(int stacks, int slices)
     }
 }
 
-void Model::setup_shdrpgm(std::string shader)
-{
-    std::string vert = "../shaders/";
-    std::string frag = "../shaders/";
-    vert = vert + shader + ".vert";
-    frag = frag + shader + ".frag";
-
-    Shader_handle = LoadShaders(vert.c_str(), frag.c_str());
-}
-
-void Model::Draw( glm::mat4 view, glm::mat4 projection)
-{
-    glBindVertexArray(VAO);
-   // glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    GLint model_loc = glGetUniformLocation(Shader_handle, "model");
-    GLint view_loc = glGetUniformLocation(Shader_handle, "view");
-    GLint projection_loc = glGetUniformLocation(Shader_handle, "projection");
-
-    model = glm::translate(model, position);
-    model = glm::rotate(model, rotation.x, { 1,0,0 });
-    model = glm::rotate(model, rotation.y, { 0,1,0 });
-    model = glm::rotate(model, rotation.z, { 0,0,1 });
-    model = glm::scale(model, { scale.x,scale.y,scale.z });
-
-    glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model[0].x);
-    glUniformMatrix4fv(view_loc, 1, GL_FALSE, &view[0].x);
-    glUniformMatrix4fv(projection_loc, 1, GL_FALSE, &projection[0].x);
-    glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, nullptr);
-    model = {
-     1,0,0,0,
-     0,1,0,0,
-     0,0,1,0,
-     0,0,0,1
-    };
-}
-
-void Model::Draw_vtx_normal(glm::mat4 view, glm::mat4 projection)
-{
-    model = glm::translate(model, position);
-    model = glm::rotate(model, rotation.x, { 1,0,0 });
-    model = glm::rotate(model, rotation.y, { 0,1,0 });
-    model = glm::rotate(model, rotation.z, { 0,0,1 });
-    model = glm::scale(model, { scale.x,scale.y,scale.z });
-    vertex_normal.Draw(view, projection, model);
-    model = {
-        1,0,0,0,
-        0,1,0,0,
-        0,0,1,0,
-        0,0,0,1
-    };
-}
-void Model::Draw_face_normal(glm::mat4 view, glm::mat4 projection)
-{
-    model = glm::translate(model, position);
-    model = glm::rotate(model, rotation.x, { 1,0,0 });
-    model = glm::rotate(model, rotation.y, { 0,1,0 });
-    model = glm::rotate(model, rotation.z, { 0,0,1 });
-    model = glm::scale(model, { scale.x,scale.y,scale.z });
-    face_normal.Draw(view, projection, model);
-    model = {
-        1,0,0,0,
-        0,1,0,0,
-        0,0,1,0,
-        0,0,0,1
-    };
-}
-
 void Model::Calculate_normal()
 {
     std::map<int, std::vector<glm::vec3>> accumulation;
@@ -209,7 +133,7 @@ void Model::Set_vertex_normal()
     {
         vertices.push_back(vertexBuffer[i].pos);
         vertexBuffer[i].vtx_nrm = glm::normalize(vertexBuffer[i].vtx_nrm);
-        vertices.push_back(vertexBuffer[i].pos + (vertexBuffer[i].vtx_nrm / (scale * 8.f)));
+        vertices.push_back(vertexBuffer[i].pos + (vertexBuffer[i].vtx_nrm / ( 8.f)));
     }
     vertex_normal.init(vertices);
 }
@@ -223,9 +147,13 @@ void Model::Set_face_normal()
         glm::vec3 pos_2 = vertexBuffer[FaceBuffer[i].index[2]].pos;
         glm::vec3 pos = (pos_0 + pos_1 + pos_2) / 3.f;
         vertices.push_back(pos);
-        vertices.push_back(pos + (FaceBuffer[i].nrm / (scale * 8.f)));
+        vertices.push_back(pos + (FaceBuffer[i].nrm / ( 8.f)));
     }
     face_normal.init(vertices);
+}
+void Model::Use()
+{
+    glBindVertexArray(VAO);
 }
 Model create_sphere(int stacks, int slices)
 {
@@ -266,12 +194,8 @@ Model load_obj(const char* path)
         std::cerr << "Impossible to open the file !";
         std::exit(EXIT_FAILURE);
     }
-    float min_x = 100.f;
-    float min_y = 100.f;
-    float min_z = 100.f;
-    float max_x = -100.f;
-    float max_y = -100.f;
-    float max_z = -100.f;
+    glm::vec3 min{100.f};
+    glm::vec3 max{-100.f};
     std::string label;
     std::vector<unsigned int> tmp_index;
     while (inFile.eof() == false)
@@ -285,29 +209,29 @@ Model load_obj(const char* path)
             inFile >> vertex.y;
             inFile >> vertex.z;
 
-            if (vertex.x < min_x)
+            if (vertex.x < min.x)
             {
-                min_x = vertex.x;
+                min.x = vertex.x;
             }
-            if (vertex.y < min_y)
+            if (vertex.y < min.y)
             {
-                min_y = vertex.y;
+                min.y = vertex.y;
             }
-            if (vertex.z < min_z)
+            if (vertex.z < min.z)
             {
-                min_z = vertex.z;
+                min.z = vertex.z;
             }
-            if (vertex.x > max_x)
+            if (vertex.x > max.x)
             {
-                max_x = vertex.x;
+                max.x = vertex.x;
             }
-            if (vertex.y > max_y)
+            if (vertex.y > max.y)
             {
-                max_y = vertex.y;
+                max.y = vertex.y;
             }
-            if (vertex.z > max_z)
+            if (vertex.z > max.z)
             {
-                max_z = vertex.z;
+                max.z = vertex.z;
             }
             temp_vertices.push_back(vertex);
         }
@@ -320,7 +244,7 @@ Model load_obj(const char* path)
              {
                  break;
              }
-            tmp_index.push_back(index);
+             tmp_index.push_back(index);
              inFile >> index;
              tmp_index.push_back(index);          
              inFile >> index;
@@ -333,31 +257,21 @@ Model load_obj(const char* path)
     {
         vertexIndices.push_back(i);
     }
-    glm::vec3 center{ 0,0,0 };
     for (unsigned int i = 0; i < temp_vertices.size(); i++)
     {
         Vertex v;
         v.pos = temp_vertices[i];
-        center += temp_vertices[i];
         model.addVertex(v);
     }
-    center /= static_cast<float>(temp_vertices.size());
-
     for (unsigned int i = 0; i < vertexIndices.size(); i++)
     {
         model.addIndex(vertexIndices[i] - 1);
     }
-    for (unsigned int i = 0; i < vertexIndices.size(); i++)
-    {
-        model.addIndex(vertexIndices[i] - 1);
-    }
-
     for (auto& vertex : model.vertexBuffer)
     {
-        vertex.pos -= center;
-        vertex.pos.x *= 2.f / (max_x - min_x);
-        vertex.pos.y *= 2.f / (max_y - min_y);
-        vertex.pos.z *= 2.f / (max_z - min_z) ;
+        vertex.pos.x = (2.f  * ((vertex.pos.x - min.x) / (max.x - min.x)))-1.f;
+        vertex.pos.y = (2.f * ((vertex.pos.y - min.y) / (max.y - min.y))) - 1.f;
+        vertex.pos.z = (2.f * ((vertex.pos.z - min.z) / (max.z - min.z))) - 1.f;
     }
     model.Calculate_normal();
     model.SendVertexData();
@@ -383,7 +297,7 @@ void Line::send_data()
     glGenBuffers(1, &VBO);
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * vertices.size() , &vertices[0].x, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * vertices.size() , &vertices[0].x, GL_DYNAMIC_DRAW);
     // position attribute
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);

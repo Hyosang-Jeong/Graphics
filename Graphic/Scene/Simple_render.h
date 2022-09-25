@@ -1,5 +1,6 @@
 #include"Scene.h"
-#include"../Model.h"
+#include"Model.h"
+#include"Object.h"
 #include"Camera.h"
 struct ImGui_bool
 {
@@ -7,6 +8,14 @@ struct ImGui_bool
 	bool draw_face_normal{ false };
 };
 
+enum  model_name
+{
+	Bunny,
+	_4Sphere,
+	Cube,
+	Sphere,
+	count
+};
 class Simple_render : public Scene
 {
 public:
@@ -19,12 +28,15 @@ public:
 	void OnImGuiRender() override;
 
 private:
+	void create_spheres_and_lines();
+	void create_objects();
 	Camera camera;
-	std::vector<Model> models;
+
+	Model models[count];
+	std::vector<Object> objects;
 
 	Line circle;
-	Model sphere;
-	ImGui_bool flag;
 	glm::vec3 light_pos;
-	void create_spheres_and_lines();
+	ImGui_bool flag;
+	int model_to_draw{ 0 };
 };

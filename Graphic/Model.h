@@ -4,6 +4,7 @@
 #include<glm/glm.hpp>
 #include<string>
 #include"shader.h"
+#include<map>
 
 
 struct Vertex
@@ -72,7 +73,7 @@ public:
 class Model
 {
 public:
-    Model() : numVertices(0), numTris(0), numIndices(0), vertex_per_face{ 3 },position { 0 }, scale{ 1 }, rotation{ 0 }, VBO{ 0 }, VAO{ 0 }, IBO{ 0 }, Shader_handle{ 0 }
+    Model() : numVertices(0), numTris(0), numIndices(0), vertex_per_face{ 3 }, VBO{ 0 }, VAO{ 0 }, IBO{ 0 }
     { }
 
     std::vector<Vertex> vertexBuffer;
@@ -87,65 +88,23 @@ public:
     GLuint VAO;
     GLuint VBO;
     GLuint IBO;
-    GLuint Shader_handle;
     Line vertex_normal;
     Line face_normal;
 
-    glm::mat4 model =
-    {
-     1,0,0,0,
-     0,1,0,0,
-     0,0,1,0,
-     0,0,0,1
-    };
-    void init(std::string shader, glm::vec3 Pos = { 0,0,0 }, glm::vec3 Scale = { 1,1,1 }, glm::vec3 Rotate = { 0,0,0 });
     void addVertex(const Vertex& v);
     void addIndex( int index);
     void SendVertexData();
     bool DegenerateTri(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2);
     void BuildIndexBuffer(int stacks, int slices);
-    void setup_shdrpgm(std::string shader);
-
-    void Draw(glm::mat4 view, glm::mat4 projection);
-    void Draw_vtx_normal(glm::mat4 view, glm::mat4 projection);
-    void Draw_face_normal(glm::mat4 view, glm::mat4 projection);
 
     void Calculate_normal();
     void Set_vertex_normal();
     void Set_face_normal();
 
-    void set_position(glm::vec3 pos)
-    {
-        position = pos;
-    }
-    void set_rotation(glm::vec3 angle)
-    {
-        rotation = angle;
-    }
-    void set_scale(float factor)
-    {
-        scale *= factor;
-    }
-    glm::vec3& Get_position()
-    {
-        return position;
-    }
-    glm::vec3& Get_Rotation()
-    {
-        return rotation;
-    }
-    glm::vec3& Get_Scale()
-    {
-        return scale;
-    }
-private:
-    glm::vec3 position{ 0,0,0 };
-    glm::vec3 scale = { 1,1,1 };
-    glm::vec3 rotation{ 0,0,0 };
+    void Use();
 };
 
 Model create_sphere(int stacks, int sector);
-
 Model load_obj(const char* path);
 
 
