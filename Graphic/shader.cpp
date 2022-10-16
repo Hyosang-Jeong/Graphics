@@ -1,3 +1,15 @@
+/* Start Header -------------------------------------------------------
+Copyright (C) 2022 DigiPen Institute of Technology.
+Reproduction or disclosure of this file or its contents without the prior written
+consent of DigiPen Institute of Technology is prohibited.
+File Name: shader.cpp
+Purpose: Implement shader functions
+Language: c++ Microsoft Visual Studio
+Platform: Microsoft Visual Studio2019, Windows
+Project:  Hyosang Jung_CS300_1
+Author: Hyosang Jung, hyosang.jung, 055587. code from digipen
+Creation date: 2022 - 09 - 14
+End Header --------------------------------------------------------*/
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -53,7 +65,6 @@ GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path
 
 
 	// Compile Vertex Shader
-	printf("Compiling shader : %s\n", vertex_file_path);
 	char const * VertexSourcePointer = VertexShaderCode.c_str();
 	glShaderSource(VertexShaderID, 1, &VertexSourcePointer , nullptr);
 	glCompileShader(VertexShaderID);
@@ -69,7 +80,6 @@ GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path
 
 
 	// Compile Fragment Shader
-	printf("Compiling shader : %s\n", fragment_file_path);
 	char const * FragmentSourcePointer = FragmentShaderCode.c_str();
 	glShaderSource(FragmentShaderID, 1, &FragmentSourcePointer , nullptr);
 	glCompileShader(FragmentShaderID);
@@ -77,6 +87,7 @@ GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path
 	// Check Fragment Shader
 	glGetShaderiv(FragmentShaderID, GL_COMPILE_STATUS, &Result);
 	glGetShaderiv(FragmentShaderID, GL_INFO_LOG_LENGTH, &InfoLogLength);
+  
 	if ( InfoLogLength > 0 ){
 		std::vector<char> FragmentShaderErrorMessage(InfoLogLength+1);
 		glGetShaderInfoLog(FragmentShaderID, InfoLogLength, nullptr, &FragmentShaderErrorMessage[0]);
@@ -85,7 +96,6 @@ GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path
 
 
 	// Link the program
-	printf("Linking program\n");
 	GLuint ProgramID = glCreateProgram();
 	glAttachShader(ProgramID, VertexShaderID);
 	glAttachShader(ProgramID, FragmentShaderID);

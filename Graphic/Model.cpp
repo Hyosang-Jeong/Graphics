@@ -1,3 +1,15 @@
+/* Start Header -------------------------------------------------------
+Copyright (C) 2022 DigiPen Institute of Technology.
+Reproduction or disclosure of this file or its contents without the prior written
+consent of DigiPen Institute of Technology is prohibited.
+File Name: Model.cpp
+Purpose: Implement model related functions. Load obj file. Create models.
+Language: c++ Microsoft Visual Studio
+Platform: Microsoft Visual Studio2019, Windows
+Project:  Hyosang Jung_CS300_1
+Author: Hyosang Jung, hyosang.jung, 055587
+Creation date: 2022 - 09 - 12
+End Header --------------------------------------------------------*/
 #include"Model.h"
 #include <glm/gtc/matrix_transform.hpp> //translate, rotate, scale, perspective 
 #include<glm/gtc/constants.hpp>
@@ -6,6 +18,13 @@
 #include<fstream>
 #include<iostream>
 
+
+Model::~Model()
+{
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &IBO);
+}
 
 void Model::addVertex(const Vertex& v)
 {
@@ -99,19 +118,19 @@ void Model::Calculate_normal()
 
     for (int i = 0; i < numIndices; i+=vertex_per_face)
     {
-        int index1 = indexBuffer[i];
-        int index2 = indexBuffer[i+1];
-        int index3 = indexBuffer[i+2];
+        int index1 =*(indexBuffer.begin() + i);
+        int index2 = *(indexBuffer.begin() + i + 1);
+        int index3 = * (indexBuffer.begin() + i + 2);
         
         glm::vec3 vec1 = vertexBuffer[index2].pos - vertexBuffer[index1].pos;
         glm::vec3 vec2 = vertexBuffer[index3].pos - vertexBuffer[index1].pos;
         glm::vec3 vec3 = glm::cross(vec1, vec2);
 
-        FaceBuffer.push_back({ indexBuffer[i] , indexBuffer[i + 1] , indexBuffer[i + 2] ,glm::normalize(vec3) });
+        FaceBuffer.push_back({ indexBuffer[i] , *(indexBuffer.begin() + i + 1), *(indexBuffer.begin() + i + 2) ,glm::normalize(vec3) });
 
-        accumulation[indexBuffer[i]].push_back(glm::normalize(vec3));
-        accumulation[indexBuffer[i+1]].push_back(glm::normalize(vec3));
-        accumulation[indexBuffer[i+2]].push_back(glm::normalize(vec3));
+        accumulation[index1].push_back(glm::normalize(vec3));
+        accumulation[index2].push_back(glm::normalize(vec3));
+        accumulation[index3].push_back(glm::normalize(vec3));
     }
 
     for (auto& i : accumulation)
@@ -155,9 +174,9 @@ void Model::Use()
 {
     glBindVertexArray(VAO);
 }
-Model create_sphere(int stacks, int slices)
+Model* create_sphere(int stacks, int slices)
 {
-    Model mesh;
+    Model* mesh = new Model();
    constexpr float PI = glm::pi<float>();
     for (int stack = 0; stack <= stacks; ++stack)
     {
@@ -172,20 +191,20 @@ Model create_sphere(int stacks, int slices)
             v.pos.x = 0.5f * sin(alpha) * cos(beta);
             v.pos.y = 0.5f * sin(beta);
             v.pos.z = 0.5f * cos(alpha) * cos(beta);
-            mesh. addVertex( v);
+            mesh->addVertex( v);
         }
     }
 
-    mesh.BuildIndexBuffer(stacks, slices);
-    mesh.Calculate_normal();
-    mesh.SendVertexData();
+    mesh->BuildIndexBuffer(stacks, slices);
+    mesh->Calculate_normal();
+    mesh->SendVertexData();
 
     return mesh;
 }
 
-Model load_obj(const char* path)
+Model* load_obj(const char* path)
 {
-    Model model;
+    Model* model = new Model();
     std::vector< unsigned int > vertexIndices;
     std::vector< glm::vec3 > temp_vertices;
     std::ifstream inFile(path);
@@ -249,7 +268,6 @@ Model load_obj(const char* path)
              tmp_index.push_back(index);          
              inFile >> index;
              tmp_index.push_back(index);
-           // model.vertex_per_face = static_cast<int>(tmp_index.size());
         }
 
     }
@@ -261,20 +279,21 @@ Model load_obj(const char* path)
     {
         Vertex v;
         v.pos = temp_vertices[i];
-        model.addVertex(v);
+        model->addVertex(v);
     }
     for (unsigned int i = 0; i < vertexIndices.size(); i++)
     {
-        model.addIndex(vertexIndices[i] - 1);
+        model->addIndex(vertexIndices[i] - 1);
     }
-    for (auto& vertex : model.vertexBuffer)
+
+    for (auto& vertex : model->vertexBuffer)
     {
         vertex.pos.x = (2.f  * ((vertex.pos.x - min.x) / (max.x - min.x)))-1.f;
         vertex.pos.y = (2.f * ((vertex.pos.y - min.y) / (max.y - min.y))) - 1.f;
         vertex.pos.z = (2.f * ((vertex.pos.z - min.z) / (max.z - min.z))) - 1.f;
     }
-    model.Calculate_normal();
-    model.SendVertexData();
+    model->Calculate_normal();
+    model->SendVertexData();
     return model;
 }
 

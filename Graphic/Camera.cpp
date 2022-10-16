@@ -1,3 +1,15 @@
+/* Start Header -------------------------------------------------------
+Copyright (C) 2022 DigiPen Institute of Technology.
+Reproduction or disclosure of this file or its contents without the prior written
+consent of DigiPen Institute of Technology is prohibited.
+File Name: Camera.cpp
+Purpose: Camera class for each scene
+Language: c++ Microsoft Visual Studio
+Platform: Microsoft Visual Studio2019, Windows
+Project:  Hyosang Jung_CS300_1
+Author: Hyosang Jung, hyosang.jung, 055587
+Creation date: 2022 - 09 - 15
+End Header --------------------------------------------------------*/
 #include "Camera.h"
 
 
@@ -21,8 +33,7 @@ glm::mat4 Camera::GetCamera()
 	front.y = sin(glm::radians(Pitch));
 	front.z = sin(glm::radians(Yaw)) * cos(glm::radians(Pitch));
 	Front = glm::normalize(front);
-	// also re-calculate the Right and Up vector
-	Right = glm::normalize(glm::cross(Front, WorldUp));  // normalize the vectors, because their length gets closer to 0 the more you look up or down which results in slower movement.
+	Right = glm::normalize(glm::cross(Front, WorldUp));  
 	Up = glm::normalize(glm::cross(Right, Front));
 	return glm::lookAt(Position, Position + Front, Up);;
 }

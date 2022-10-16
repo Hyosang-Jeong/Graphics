@@ -1,3 +1,15 @@
+/* Start Header -------------------------------------------------------
+Copyright (C) 2022 DigiPen Institute of Technology.
+Reproduction or disclosure of this file or its contents without the prior written
+consent of DigiPen Institute of Technology is prohibited.
+File Name: Model.h
+Purpose: Declare Vertex, Model, Line class and functions.
+Language: c++ Microsoft Visual Studio
+Platform: Microsoft Visual Studio2019, Windows
+Project:  Hyosang Jung_CS300_1
+Author: Hyosang Jung, hyosang.jung, 055587
+Creation date: 2022 - 09 - 12
+End Header --------------------------------------------------------*/
 #pragma once
 #include <vector>
 #include <GL/glew.h> 
@@ -75,16 +87,14 @@ class Model
 public:
     Model() : numVertices(0), numTris(0), numIndices(0), vertex_per_face{ 3 }, VBO{ 0 }, VAO{ 0 }, IBO{ 0 }
     { }
-
+    ~Model();
     std::vector<Vertex> vertexBuffer;
     std::vector<int> indexBuffer;
     std::vector<Face> FaceBuffer;
     int numVertices;
     int numTris;
     int numIndices;
-
     int vertex_per_face; // number of vertex per face
-
     GLuint VAO;
     GLuint VBO;
     GLuint IBO;
@@ -104,8 +114,8 @@ public:
     void Use();
 };
 
-Model create_sphere(int stacks, int sector);
-Model load_obj(const char* path);
+Model* create_sphere(int stacks, int sector);
+Model* load_obj(const char* path);
 
 
 
