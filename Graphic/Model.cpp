@@ -74,7 +74,6 @@ bool Model::DegenerateTri(const glm::vec3& v0, const glm::vec3& v1, const glm::v
         glm::distance(v1, v2) < 0.00001f ||
         glm::distance(v2, v0) < 0.00001f);
 }
-
 void Model::BuildIndexBuffer(int stacks, int slices)
 {
     int p0 = 0, p1 = 0, p2 = 0;
@@ -111,7 +110,6 @@ void Model::BuildIndexBuffer(int stacks, int slices)
         }
     }
 }
-
 void Model::Calculate_normal()
 {
     std::map<int, std::vector<glm::vec3>> accumulation;
@@ -144,6 +142,53 @@ void Model::Calculate_normal()
 
     Set_vertex_normal();
     Set_face_normal();
+}
+void Model::Calculate_uv_planar()
+{
+    for (auto& vertex : vertexBuffer)
+    {
+        vertex.uv.x = (vertex.pos.x +1.f) / (2.f);
+        vertex.uv.y = (vertex.pos.y + 1.f) / (2.f);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    /*  Copy vertex attributes to GPU */
+    glBufferData(GL_ARRAY_BUFFER,
+        static_cast<GLsizeiptr>(numVertices) * static_cast<GLsizeiptr>(vertexSize), &vertexBuffer[0],
+        GL_DYNAMIC_DRAW);
+}
+void Model::Calculate_uv_cylindrical(float y_max, float y_min)
+{
+    auto min = std::min_element(vertexBuffer.begin(), vertexBuffer.end(), [](Vertex x, Vertex y) {return x.pos.y < y.pos.y; });
+    auto max = std::max_element(vertexBuffer.begin(), vertexBuffer.end(), [](Vertex x, Vertex y) {return x.pos.y < y.pos.y; });
+    Vertex m = *min;
+    Vertex M = *max;
+    float range = M.pos.y - m.pos.y;
+
+    for (auto& vertex : vertexBuffer)
+    {
+        float u = glm::degrees(atan(vertex.pos.z/ vertex.pos.x));
+        if (vertex.pos.z < 0)
+        {
+           u *= -1.f;
+           u += 90.f;
+        }
+        if (vertex.pos.x < 0)
+        {
+            if (vertex.pos.z < 0)
+            {
+                u += 180.f;
+            }
+            else
+                u = 360.f + u;
+        }
+        vertex.uv.x = u / 360.f;
+        vertex.uv.y = (vertex.pos.y - m.pos.y) / (range);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    /*  Copy vertex attributes to GPU */
+    glBufferData(GL_ARRAY_BUFFER,
+        static_cast<GLsizeiptr>(numVertices) * static_cast<GLsizeiptr>(vertexSize), &vertexBuffer[0],
+        GL_DYNAMIC_DRAW);
 }
 void Model::Set_vertex_normal()
 {
@@ -197,9 +242,35 @@ Model* create_sphere(int stacks, int slices)
 
     mesh->BuildIndexBuffer(stacks, slices);
     mesh->Calculate_normal();
+    mesh->Calculate_uv_cylindrical(1.f,-1.f);
     mesh->SendVertexData();
 
     return mesh;
+}
+
+Model* create_plane(int stacks, int slices)
+{
+    Model* model = new Model();
+    for (int stack = 0; stack <= stacks; ++stack)
+    {
+        float row = (float)stack / stacks;
+
+        for (int slice = 0; slice <= slices; ++slice)
+        {
+            float col = (float)slice / slices;
+
+            Vertex v;
+
+            v.pos = glm::vec3(col - 0.5f, 0.0f, 0.5f - row );
+
+            model->addVertex(v);
+        }
+    }
+
+    model->BuildIndexBuffer(stacks, slices);
+    model->Calculate_normal();
+    model->SendVertexData();
+    return model;
 }
 
 Model* load_obj(const char* path)
@@ -288,11 +359,12 @@ Model* load_obj(const char* path)
 
     for (auto& vertex : model->vertexBuffer)
     {
-        vertex.pos.x = (2.f  * ((vertex.pos.x - min.x) / (max.x - min.x)))-1.f;
-        vertex.pos.y = (2.f * ((vertex.pos.y - min.y) / (max.y - min.y))) - 1.f;
-        vertex.pos.z = (2.f * ((vertex.pos.z - min.z) / (max.z - min.z))) - 1.f;
+        vertex.pos.x = max.x == min.x? 0 :  (2.f * ((vertex.pos.x - min.x) / (max.x - min.x))) - 1.f;
+        vertex.pos.y = max.y == min.y ? 0 : (2.f * ((vertex.pos.y - min.y) / (max.y - min.y))) - 1.f;
+        vertex.pos.z = max.z == min.z ? 0 :  (2.f * ((vertex.pos.z - min.z) / (max.z - min.z))) - 1.f;
     }
     model->Calculate_normal();
+    model->Calculate_uv_cylindrical( max.y,  min.y);
     model->SendVertexData();
     return model;
 }

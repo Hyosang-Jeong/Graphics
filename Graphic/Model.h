@@ -27,7 +27,7 @@ struct Vertex
 
     glm::vec3 pos{ 0 };
     glm::vec3 vtx_nrm{ 0 };
-    glm::vec3 color{ 0 };
+    glm::vec2 uv{ 0 };
 };
 
 constexpr int vertexSize = sizeof(Vertex);
@@ -61,7 +61,7 @@ const VertexLayout vLayout[] =
 {
     { 0, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, pos) },
     { 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, vtx_nrm) },
-    {2, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, color) }
+    {2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, uv) }
 };
 
 constexpr int layoutSize = sizeof(VertexLayout);
@@ -98,6 +98,8 @@ public:
     GLuint VAO;
     GLuint VBO;
     GLuint IBO;
+    GLuint uboHandle;
+
     Line vertex_normal;
     Line face_normal;
 
@@ -108,6 +110,8 @@ public:
     void BuildIndexBuffer(int stacks, int slices);
 
     void Calculate_normal();
+    void Calculate_uv_planar();
+    void Calculate_uv_cylindrical(float y_max, float y_min);
     void Set_vertex_normal();
     void Set_face_normal();
 
@@ -115,6 +119,7 @@ public:
 };
 
 Model* create_sphere(int stacks, int sector);
+Model* create_plane(int stacks, int slices);
 Model* load_obj(const char* path);
 
 

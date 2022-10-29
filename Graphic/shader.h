@@ -19,6 +19,7 @@ enum Primitive_Enum
     Points,
     LineStrip
 };
+GLuint setup_shdrpgm(std::string shader);
 
 ///////////////////
 GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path);
@@ -30,4 +31,5 @@ GLuint LoadPipeline(const char * vertex_file_path,const char * fragment_file_pat
 // Show how code can be reused across shaders
 GLuint LoadMultiShaders(const char *vertex_file_path, const char *fragment_file_path,
                         const char *geom_file_path, Primitive_Enum  out_primitive_type );
+
 

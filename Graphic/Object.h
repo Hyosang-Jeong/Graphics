@@ -17,17 +17,16 @@ End Header --------------------------------------------------------*/
 class Object
 {
 public:
-    Object(std::string shader);
+    Object() = default;
+    Object(GLuint shader);
+
     void Draw_vtx_normal( glm::mat4 view, glm::mat4 projection);
     void Draw_face_normal( glm::mat4 view, glm::mat4 projection);
-    
     void Draw( glm::mat4 view, glm::mat4 projection);
-    
-    void setup_shdrpgm(std::string shader);
-
     GLuint Shader_handle;
+    Model* model;
+
     glm::vec3 position{ 0,0,0 };
     glm::vec3 scale = { 1,1,1 };
     glm::vec3 rotation{ 0,0,0 };
-    Model* model;
 };

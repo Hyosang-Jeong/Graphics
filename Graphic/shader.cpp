@@ -29,6 +29,16 @@ using namespace std;
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
+GLuint setup_shdrpgm(std::string shader)
+{
+        std::string vert = "../shaders/";
+        std::string frag = "../shaders/";
+        vert = vert + shader + ".vert";
+        frag = frag + shader + ".frag";
+
+        return LoadShaders(vert.c_str(), frag.c_str());
+}
+
 GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path)
 {
 

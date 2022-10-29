@@ -13,12 +13,10 @@ End Header --------------------------------------------------------*/
 #include"Object.h"
 #include <glm/gtc/matrix_transform.hpp> //translate, rotate, scale, perspective 
 
-Object::Object(std::string shader)
+Object::Object(GLuint shader)
 {
-    setup_shdrpgm(shader);
+    Shader_handle = shader;
 }
-
-
 
 void Object::Draw( glm::mat4 view, glm::mat4 projection)
 {
@@ -37,16 +35,6 @@ void Object::Draw( glm::mat4 view, glm::mat4 projection)
     glUniformMatrix4fv(view_loc, 1, GL_FALSE, &view[0].x);
     glUniformMatrix4fv(projection_loc, 1, GL_FALSE, &projection[0].x);
     glDrawElements(GL_TRIANGLES, model->numIndices, GL_UNSIGNED_INT, nullptr);
-}
-
-void Object::setup_shdrpgm(std::string shader)
-{
-    std::string vert = "../shaders/";
-    std::string frag = "../shaders/";
-    vert = vert + shader + ".vert";
-    frag = frag + shader + ".frag";
-
-    Shader_handle = LoadShaders(vert.c_str(), frag.c_str());
 }
 
 void Object::Draw_vtx_normal(glm::mat4 view, glm::mat4 projection)

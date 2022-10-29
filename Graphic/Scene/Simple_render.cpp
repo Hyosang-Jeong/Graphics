@@ -16,14 +16,19 @@ End Header --------------------------------------------------------*/
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_glfw.h>
+#include"Image.h"
 #include<iostream>
 using namespace glm;
-Simple_render::Simple_render()
+Simple_render::Simple_render() : active_light(1)
 {
+    metal_diff_ppm = load_ppm("../textures/metal_roof_diff_512x512.ppm");
+    metal_spec_ppm = load_ppm("../textures/metal_roof_spec_512x512.ppm");
+    create_shaders();
     create_models();
     create_objects();
+    create_lights();
     create_spheres_and_lines();
-    light_pos = { 0,0,10 };
+    lightUBO.SetUniformBlock(1552, &lights);
     camera = Camera({ 0.0f, 5.0f, 10.0f });
     camera.SetPitch(-25.f);
 }
@@ -36,38 +41,26 @@ Simple_render::~Simple_render()
     }
 }
 
-
-
 void Simple_render::Update(float deltaTime)
 {
-    objects[0].rotation = { 0, objects[0].rotation.y + deltaTime*0.2f,0 };
-    float angle = 360.f / 8.f;
+    //objects[0].rotation = { 0, objects[0].rotation.y + deltaTime*0.2f,0 };
+    float angle = 360.f / (float)maxLight;
 
-    for (int i = 0; i < objects.size(); i++)
+    for (int i =0; i< lightObj.size(); i++)
     {
-        if(objects[i].model == models[Sphere])
-            objects[i].position = (glm::vec3{ 4.f * sin(glm::radians(angle * i) + glfwGetTime() * 0.5f), 0, 4.f * cos(glm::radians(angle * i)  +glfwGetTime() * 0.5f) });
+        lightObj[i].position = (glm::vec3{ 4.f * sin(glm::radians(angle * i) + glfwGetTime() * 0.5f), 0, 4.f * cos(glm::radians(angle * i) + glfwGetTime() * 0.5f) });
+        lights.light[i].UpdatePosition(lightObj[i].position);
     }
+    lightUBO.UpdateUniformBlock();
+
 }
 
 void Simple_render::Draw()
 {
     circle.Draw(camera.GetCamera(), projection);
-
-    {
-        glUseProgram(objects[0].Shader_handle);
-        GLint light_loc = glGetUniformLocation(objects[0].Shader_handle, "lightPos");
-        glUniform3f(light_loc, light_pos.x, light_pos.y, light_pos.z);
-        objects[0].Draw(camera.GetCamera(), projection);
-    }
-
-    for (int i = 1; i<objects.size(); i++)
-    {
-        glUseProgram(objects[i].Shader_handle);
-        GLint light_loc = glGetUniformLocation(objects[i].Shader_handle, "lightPos");
-        glUniform3f(light_loc, light_pos.x, light_pos.y, light_pos.z);
-        objects[i].Draw(camera.GetCamera(), projection);
-    }
+    Draw_CenterObj();
+    Draw_Lights();
+    Draw_Plane();
     OnImGuiRender();
 }
 
@@ -84,18 +77,17 @@ void Simple_render::OnImGuiRender()
     ImGui::Checkbox("Draw Vertex normal", &flag.draw_vtx_normal);
     ImGui::Checkbox("Draw Face normal", &flag.draw_face_normal);
 
-    const char* items[] = { "Bunny", "4Sphere", "Cube", "Sphere_modified", "Sphere"};
-    static const char* current_item = items[0];
-
+    static const char* model[] = { "Bunny", "4Sphere", "Cube", "Sphere_modified", "Sphere"};
+    static const char* current_item = model[0];
     if (ImGui::BeginCombo("Model", current_item)) // The second parameter is the label previewed before opening the combo.
     {
         for (int n = 0; n < 5; n++)
         {
-            bool is_selected = (current_item == items[n]);
-            if (ImGui::Selectable(items[n], is_selected))
+            bool is_selected = (current_item == model[n]);
+            if (ImGui::Selectable(model[n], is_selected))
             {
-                current_item = items[n];
-                objects[0].model = models[n];
+                current_item = model[n];
+                centerObj.model = models[n];
             }
             if (is_selected)
             {
@@ -105,18 +97,39 @@ void Simple_render::OnImGuiRender()
         ImGui::EndCombo();
     }
 
+   static const char* shader[] = { "phong_lighting", "phong_shading"};
+   static  const char* current_shader = shader[1];
+    if (ImGui::BeginCombo("Shader", current_shader)) // The second parameter is the label previewed before opening the combo.
+    {
+        for (int n = 0; n < 2; n++)
+        {
+            bool is_selected = (current_shader == shader[n]);
+            if (ImGui::Selectable(shader[n], is_selected))
+            {
+                current_shader = shader[n];
+            }
+            if (is_selected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
+    if (ImGui::Button("Reload Shader"))
+    {
+        reload_shaders(current_shader);
+    }
+
     if (flag.draw_vtx_normal)
     {
-        objects[0].Draw_vtx_normal(camera.GetCamera(), projection);
+        centerObj.Draw_vtx_normal(camera.GetCamera(), projection);
     }
     if (flag.draw_face_normal)
     {
-        objects[0].Draw_face_normal(camera.GetCamera(), projection);
+        centerObj.Draw_face_normal(camera.GetCamera(), projection);
     }
-    ImGui::SliderFloat3("Light position", &light_pos.x, -20.f, 20.f);
-
     glm::vec3 camera_pos = camera.GetPosition();
-    if (ImGui::SliderFloat3("Camera position", &camera_pos.x, -10.f, 10.f))
+    if (ImGui::SliderFloat3("Camera position", &camera_pos.x, -20.f, 20.f))
     {
         camera.SetPosition(camera_pos);
     }
@@ -132,6 +145,16 @@ void Simple_render::OnImGuiRender()
     {
         camera.SetPitch(Pitch);
     }
+
+    LightImGui();
+
+}
+
+void Simple_render::create_shaders()
+{
+    shaders["phong_lighting"] = setup_shdrpgm("phong_lighting");
+    shaders["phong_shading"] = setup_shdrpgm("phong_shading");
+    shaders["lighting"] = setup_shdrpgm("lighting");
 }
 
 void Simple_render::create_models()
@@ -153,20 +176,23 @@ void Simple_render::create_models()
 
     models[Sphere] = create_sphere(32, 32);
     std::cout << "Load :sphere model" << std::endl;
+
+    models[Plane] = load_obj("../obj/quad.obj");
+    std::cout << "Load :plane model" << std::endl;
 }
 
 void Simple_render::create_spheres_and_lines()
 {
     const float radius = 4.f;
-
-    for (auto i = 0; i <  8; i++)
+    for (auto i = 0; i <  maxLight; i++)
     {
-       Object obj("simple_render");
-       obj.position = glm::vec3{ radius * sin(glm::radians(360.f / 8.f * i)), 0, radius * cos(glm::radians(360.f / 8.f * i)) };
+       Object obj(shaders["lighting"]);
+       obj.position = glm::vec3{ radius * sin(glm::radians(360.f / (float)maxLight * i)), 0, radius * cos(glm::radians(360.f / (float)maxLight * i)) };
        obj.scale = glm::vec3(0.2f);
        obj.model = models[Sphere];
-       objects.push_back(obj);
+       lightObj.push_back(obj);
     }
+
     std::vector<vec3> vertices;
     int num_points = 720;
     float angle = 360.f / static_cast<float>(num_points);
@@ -177,12 +203,115 @@ void Simple_render::create_spheres_and_lines()
         vertices.push_back({ radius * cos(glm::radians(angle * static_cast<float>(i + 1))) , 0 ,radius * sin(glm::radians(angle * static_cast<float>(i + 1))) });
     }
     circle.init(vertices);
+
+
 }
 void Simple_render::create_objects()
 {
-         Object obj("simple_render");
-         obj.position = glm::vec3{ 0,0,0 };
-         obj.scale = glm::vec3(1.f);
-         obj.model = models[Bunny];
-         objects.push_back(obj);
+    //plane 
+    { 
+        Object obj(shaders["phong_shading"]);
+        obj.position = glm::vec3{ 0,-4,-4 };
+        obj.scale = glm::vec3(8);
+        obj.rotation = glm::vec3(-pi<float>() / 2.f, 0, 0);
+        obj.model = models[Plane];
+        plane = obj;
+    }
+
+    {
+        Object obj(shaders["phong_shading"]);
+        obj.position = glm::vec3{ 0,0,0 };
+        obj.scale = glm::vec3(1.f);
+        obj.model = models[Bunny];
+        centerObj = obj;
+    }
 }
+
+void Simple_render::create_lights()
+{
+    for (int i = 0; i < maxLight; i++)
+    {
+         Light light(LIGHT_TYPE::DIRECTIONAL, Material(), glm::vec3(1));
+        lights.light[i] = light;
+    }
+    lights.activeLight = active_light;
+}
+
+void Simple_render::reload_shaders(std::string shader)
+{
+    centerObj.Shader_handle = shaders[shader];
+}
+
+void Simple_render::LightImGui()
+{
+    ImGui::Begin("Light");
+    static float ambient[] = { 1.f,1.f,1.f};
+    static float diffuse[] = { 1.f,1.f,1.f };
+    static float specular[] = { 1.f,1.f,1.f };
+
+    if (ImGui::ColorEdit3("Ambient", ambient))
+    {
+        for(int i = 0; i< maxLight; i++)
+             lights.light[i].UpdateAmbient(glm::vec3(ambient[0], ambient[1], ambient[2]));
+   }
+    if (ImGui::ColorEdit3("Diffuse", diffuse))
+    {
+        for (int i = 0; i < maxLight; i++)
+            lights.light[i].UpdateDiffuse(glm::vec3(diffuse[0], diffuse[1], diffuse[2]));
+    }   
+    if (ImGui::ColorEdit3("Specular", specular))
+    {
+        for (int i = 0; i < maxLight; i++)
+            lights.light[i].UpdateSpecular(glm::vec3(specular[0], specular[1], specular[2]));
+    }
+
+    if (ImGui::SliderInt("Active lights", &active_light, 1, maxLight))
+    {
+        lights.activeLight = active_light;
+    }
+}
+
+void Simple_render::Draw_CenterObj()
+{
+        glUseProgram(centerObj.Shader_handle);
+
+        GLint diffuse_texture = glGetUniformLocation(centerObj.Shader_handle, "material_Diffuse");
+        glUniform1d(diffuse_texture, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, metal_diff_ppm);
+
+        diffuse_texture = glGetUniformLocation(centerObj.Shader_handle, "material_Specular");
+        glUniform1d(diffuse_texture, 1);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, metal_spec_ppm);
+
+
+        GLint light_loc = glGetUniformLocation(plane.Shader_handle, "UseTexture");
+        glUniform1i(light_loc, true);
+
+        lightUBO.Use();
+        centerObj.Draw(camera.GetCamera(), projection);
+}
+
+void Simple_render::Draw_Lights()
+{
+    for (int i = 0; i < active_light; i++)
+    {
+        glUseProgram(lightObj[i].Shader_handle);
+        GLint light_loc = glGetUniformLocation(lightObj[i].Shader_handle, "diffuse");
+        glUniform3f(light_loc, lights.light[i].material.diffuse.x, lights.light[i].material.diffuse.y, lights.light[i].material.diffuse.z);
+        lightObj[i].Draw(camera.GetCamera(), projection);
+    }
+}
+
+void Simple_render::Draw_Plane()
+{
+    glUseProgram(plane.Shader_handle);
+    
+    GLint light_loc = glGetUniformLocation(plane.Shader_handle, "UseTexture");
+    glUniform1i(light_loc, false);
+
+    lightUBO.Use();
+    plane.Draw(camera.GetCamera(), projection);
+}
+

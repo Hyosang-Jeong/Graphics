@@ -15,11 +15,14 @@ End Header --------------------------------------------------------*/
 #include"Model.h"
 #include"Object.h"
 #include"Camera.h"
+#include"Light.h"
+#include"LightUBO.h"
 struct ImGui_bool
 {
 	bool draw_vtx_normal{ false };
 	bool draw_face_normal{ false };
 };
+
 
 enum  model_name
 {
@@ -29,6 +32,7 @@ enum  model_name
 	sphere_modified,
 	sphere, //from obj file
 	Sphere, //from code
+	Plane,
 	count
 };
 class Simple_render : public Scene
@@ -41,17 +45,37 @@ public:
 	void Draw() override;
 	void UnLoad() override;
 	void OnImGuiRender() override;
-
+	
 private:
+	void create_shaders();
 	void create_models();
 	void create_spheres_and_lines();
 	void create_objects();
+	void create_lights();
+	void reload_shaders(std::string shader);
+	void LightImGui();
+
+	void Draw_CenterObj();
+	void Draw_Lights();
+	void Draw_Plane();
+
 	Camera camera;
 
 	Model* models[count];
-	std::vector<Object> objects;
+
+	std::map<std::string, GLint> shaders;
+
+	Object centerObj;
+	Object plane;
+	std::vector<Object> lightObj;
+
+	LightProperties lights;
+	LightUBO lightUBO;
 
 	Line circle;
-	glm::vec3 light_pos;
 	ImGui_bool flag;
+	 int active_light;
+	 const int maxLight = 16;
+	unsigned int metal_diff_ppm;
+	unsigned int metal_spec_ppm;
 };
