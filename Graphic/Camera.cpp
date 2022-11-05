@@ -35,7 +35,7 @@ glm::mat4 Camera::GetCamera()
 	Front = glm::normalize(front);
 	Right = glm::normalize(glm::cross(Front, WorldUp));  
 	Up = glm::normalize(glm::cross(Right, Front));
-	return glm::lookAt(Position, Position + Front, Up);;
+	return glm::lookAt(Position, Position + Front, Up);
 }
 
 void Camera::SetPosition(glm::vec3 position)

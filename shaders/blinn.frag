@@ -2,24 +2,22 @@
 Copyright (C) 2022 DigiPen Institute of Technology.
 Reproduction or disclosure of this file or its contents without the prior written
 consent of DigiPen Institute of Technology is prohibited.
-File Name: phong_lighting.vert
-Purpose: phong lighting vertex shader for 3d object
+File Name: blinn.frag
+Purpose: fragment shader for 3d object including light calculation using half vector
 Language: glsl
 Platform: Microsoft Visual Studio2019, Windows
 Project:  Hyosang Jung_CS300_1
 Author: Hyosang Jung, hyosang.jung, 055587
 Creation date: 2022 - 09 - 12
 End Header --------------------------------------------------------*/
+#version 430 core
 
+layout(location=1) in vec3 NRM;
 
-#version 450 core
+in vec3 FragPos; 
+in vec2 TexCoords;
 
-layout (location = 0) in vec3 pos;
-layout (location = 1) in vec3 nrm;
-layout (location = 2) in vec2 TexCoords;
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
+out vec4 outColor;
 
 uniform sampler2D DiffuseMap;
 uniform sampler2D SpecularMap;
@@ -35,7 +33,8 @@ uniform vec3 material_Diffuse;
 uniform vec3 material_Specular;
 uniform vec3 material_Emissive;
 
-out vec3 outColor; 
+vec3 norm = normalize(NRM);
+vec3 viewDir = normalize(viewPos - FragPos);
 
 struct Light 
 {
@@ -68,9 +67,14 @@ struct Material
     float ns;
 };
 
-vec2 calcUV_cylindrical(vec3 v)
+vec2 calcUV_cylindrical()
 {
+    vec3 v;
     vec2 uv;
+    if (UsePosTOuv)
+        v = FragPos;
+    else
+        v = norm;
     float ux = degrees(atan(v.z/ v.x));
     ux += 180.f;
     float uy = (v.y+1.f) / (2.f);
@@ -78,9 +82,14 @@ vec2 calcUV_cylindrical(vec3 v)
     uv.y = uy;
     return uv;
 }
-vec2 calcUV_spherical(vec3 v)
+vec2 calcUV_spherical()
 {
+    vec3 v;
     vec2 uv;
+    if (UsePosTOuv)
+        v = FragPos;
+    else
+        v = norm;
     float  r = sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
     float theta = degrees(atan(v.z/v.x));
     theta += 180.f;
@@ -90,15 +99,22 @@ vec2 calcUV_spherical(vec3 v)
 
     return uv;
 }
-vec2 calcUV_cube(vec3 v)
+vec2 calcUV_cube()
 {
     vec3 absVec;
+    vec3 v;
 
     vec2 uv;
-
-    absVec = abs(v);
-
- 
+    if (UsePosTOuv)
+    {
+        absVec = abs(FragPos);
+        v = FragPos;
+    }
+    else
+    {
+        absVec = abs(norm);
+        v = norm;
+    }   
     if (absVec.x >= absVec.y && absVec.x >= absVec.z)
     {
         (v.x < 0.0) ? (uv.x = v.z) : (uv.x = -v.z);
@@ -119,30 +135,24 @@ vec2 calcUV_cube(vec3 v)
 }
 
 
-vec2 CalcUV(int mode, vec3 v)
+vec2 CalcUV(int mode)
 {
     vec2 UV;
     if(mode == 0)
-        UV = calcUV_cylindrical(v);
+        UV = calcUV_cylindrical();
     else if(mode ==1)
-        UV = calcUV_spherical(v);
+        UV = calcUV_spherical();
     else
-        UV = calcUV_cube(v);
+        UV = calcUV_cube();
 
     return UV;
 }
 
-Material calculate_Material(vec3 FragPos, vec3 norm)
+Material calculate_Material()
 {
      vec2 UV;
      if(UseUVFromGPU)
-     {
-        if(UsePosTOuv)
-          UV = CalcUV(UVprojectionType,FragPos);
-        else
-           UV = CalcUV(UVprojectionType,norm);         
-      }
-
+        UV = CalcUV(UVprojectionType);
      else
         UV = TexCoords;
      vec3 kd = vec3(texture(DiffuseMap, UV));
@@ -153,13 +163,14 @@ Material calculate_Material(vec3 FragPos, vec3 norm)
      return tmp;
 }
 
-vec3 CalcPointLight(Light light, vec3 FragPos, vec3 norm)
+vec3 CalcPointLight(Light light)
 {
     Material material;
     vec3 lightDir = normalize(light.position - FragPos);   
-    vec3 viewDir = normalize(viewPos - FragPos);
     float diff = max(dot(norm, lightDir), 0.0);
-    vec3 reflectDir = 2*(dot(norm, lightDir))*norm - lightDir; 
+
+    vec3 halfwayDir = normalize(lightDir + viewDir); 
+
     float distance =  length(light.position - FragPos);
     float att1 = lightProperties.coefficients.x;
     float att2 = lightProperties.coefficients.y * distance;
@@ -171,38 +182,37 @@ vec3 CalcPointLight(Light light, vec3 FragPos, vec3 norm)
     vec3 I_s;
     if(UseTexture)
     {
-        material = calculate_Material(FragPos, norm);
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.ns);
-        I_a = light.ambient *material_Ambient * material.Ka ;
-        I_d = light.diffuse * diff*material_Diffuse*material.Kd;
+        material = calculate_Material();
+        float spec = pow(max(dot(viewDir, halfwayDir), 0.0), material.ns);
+	    I_a = light.ambient * material_Ambient * material.Ka ;
+        I_d = light.diffuse * diff * material_Diffuse*material.Kd;
         I_s =light.specular * spec * material_Specular* material.Ks;
         return att * (I_a + I_d  + I_s);
     }
     else
     {
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), 64);
-        I_a = light.ambient ;
+        float spec = pow(max(dot(viewDir, halfwayDir), 0.0), 32);
+        I_a = light.ambient * 0.1;
         I_d = light.diffuse * diff;
         I_s =light.specular * spec;
-        return  att *  (I_a + I_d  + I_s);
+        return att * (I_a + I_d  + I_s);
     }
 } 
 
-vec3 CalcDirectionLight(Light light,vec3 FragPos, vec3 norm)
+vec3 CalcDirectionLight(Light light)
 {
     Material material;
     vec3 lightDir = normalize(light.position);   
-    vec3 viewDir = normalize(viewPos - FragPos);
     float diff = max(dot(norm, lightDir), 0.0);
-    vec3 reflectDir = 2*(dot(norm, lightDir))*norm - lightDir; 
+    vec3 halfwayDir = normalize(lightDir + viewDir); 
 
     vec3 I_a;
     vec3 I_d;
     vec3 I_s;
     if(UseTexture)
     {
-        material = calculate_Material(FragPos, norm);
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.ns);
+        material = calculate_Material();
+        float spec = pow(max(dot(viewDir, halfwayDir), 0.0), material.ns);
         I_a = light.ambient *material_Ambient * material.Ka ;
         I_d = light.diffuse * diff*material_Diffuse*material.Kd;
         I_s = light.specular * spec * material_Specular* material.Ks;
@@ -210,7 +220,7 @@ vec3 CalcDirectionLight(Light light,vec3 FragPos, vec3 norm)
     }
     else
     {
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), 64);
+        float spec = pow(max(dot(viewDir, halfwayDir), 0.0), 64);
 
         I_a = light.ambient * 0.1;
         I_d = light.diffuse * diff;
@@ -219,14 +229,13 @@ vec3 CalcDirectionLight(Light light,vec3 FragPos, vec3 norm)
     }
 } 
 
-vec3 CalcSpotLight(Light light,vec3 FragPos, vec3 norm)
+vec3 CalcSpotLight(Light light)
 {
     Material material;
     vec3 lightDir = normalize(light.position);   
-    vec3 viewDir = normalize(viewPos - FragPos);
     vec3 direction = normalize(light.position - FragPos);
     float diff = max(dot(norm, lightDir), 0.0);
-    vec3 reflectDir = 2*(dot(norm, lightDir))*norm - lightDir; 
+    vec3 halfwayDir = normalize(lightDir + viewDir); 
     float distance =  length(light.position - FragPos);
     float att1 = lightProperties.coefficients.x;
     float att2 = lightProperties.coefficients.y * distance;
@@ -248,8 +257,8 @@ vec3 CalcSpotLight(Light light,vec3 FragPos, vec3 norm)
     vec3 I_s;
     if(UseTexture)
     {
-        material = calculate_Material(FragPos, norm);
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.ns);
+        material = calculate_Material();
+        float spec = pow(max(dot(viewDir, halfwayDir), 0.0), material.ns);
         I_a = light.ambient *material_Ambient * material.Ka ;
         I_d = light.diffuse * diff*material_Diffuse*material.Kd;
         I_s = light.specular * spec * material_Specular* material.Ks;
@@ -257,34 +266,30 @@ vec3 CalcSpotLight(Light light,vec3 FragPos, vec3 norm)
     }
     else
     {
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), 64);
-        I_a = light.ambient;
+        float spec = pow(max(dot(viewDir, halfwayDir), 0.0), 32);
+        I_a = light.ambient *1;
         I_d = light.diffuse * diff;
         I_s =light.specular * spec;
-        return spot*(I_a + I_d  + I_s);
+        return att * spot*(I_a + I_d  + I_s);
     }
 } 
 
-void main(void) 
+void main(void)
 {
-    mat4 MVP =  projection * view * model;
-    vec3 FragPos = vec3(model * vec4(pos, 1.0));
-    vec3 NRM = normalize(mat3(transpose(inverse(model))) * nrm);
-    gl_Position =  MVP * vec4(pos, 1.0);
-
     vec3 result = vec3(0);
+    
     for(int i = 0; i < lightProperties.activeLight; i++)
     {
         if(lightProperties.light[i].type == 0)
-            result += (CalcPointLight(lightProperties.light[i],FragPos, NRM)); 
+            result += (CalcPointLight(lightProperties.light[i])); 
         else if(lightProperties.light[i].type == 1)
-            result += (CalcDirectionLight(lightProperties.light[i],FragPos, NRM)); 
+            result += (CalcDirectionLight(lightProperties.light[i])); 
         else if(lightProperties.light[i].type == 2)
-            result += (CalcSpotLight(lightProperties.light[i],FragPos, NRM));  
+            result += (CalcSpotLight(lightProperties.light[i]));  
     }
     if(UseTexture)
     {
-        Material material = calculate_Material(FragPos, NRM);       
+        Material material = calculate_Material();       
         result = material_Emissive + (lightProperties.GlobalAmbient*material.Ka) + result;
     }
     else
@@ -292,7 +297,6 @@ void main(void)
         
     float S = (lightProperties.fog_far - abs(viewPos.z - FragPos.z))/(lightProperties.fog_far - lightProperties.fog_near);
     vec3 final = (S*result) + (1-S)*lightProperties.fogColor;
-    
-    outColor = final;   
-}
 
+	 outColor =  vec4( final, 1.0);   
+}

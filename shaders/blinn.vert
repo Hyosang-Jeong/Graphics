@@ -2,8 +2,8 @@
 Copyright (C) 2022 DigiPen Institute of Technology.
 Reproduction or disclosure of this file or its contents without the prior written
 consent of DigiPen Institute of Technology is prohibited.
-File Name: phong_shading.vert
-Purpose: vertex shader for 3d object
+File Name: blinn.vert
+Purpose: vertex shader for 3d object including light calculation using half vector
 Language: glsl
 Platform: Microsoft Visual Studio2019, Windows
 Project:  Hyosang Jung_CS300_1

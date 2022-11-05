@@ -1,50 +1,21 @@
+/* Start Header -------------------------------------------------------
+Copyright (C) 2022 DigiPen Institute of Technology.
+Reproduction or disclosure of this file or its contents without the prior written
+consent of DigiPen Institute of Technology is prohibited.
+File Name: Light.cpp
+Purpose: class for one light
+Language: c++ Microsoft Visual Studio
+Platform: Microsoft Visual Studio2019, Windows
+Project:  Hyosang Jung_CS300_2
+Author: Hyosang Jung, hyosang.jung, 055587
+Creation date: 2022 - 10 - 28
+End Header --------------------------------------------------------*/
 #include "Light.h"
 
-Light::Light(LIGHT_TYPE type, Material material, glm::vec3 pos):
-	type(type),material(material),position(pos)
+Light::Light(LIGHT_TYPE type, Material material, glm::vec3 pos, glm::vec3 spot):
+	type(type),material(material),position(pos),Inner_Outer_Falloff(spot)
 {
 }
-
-//void Light::SetUniformBlock(GLuint Shader_handle)
-//{
-//    GLuint blockIndex = glGetUniformBlockIndex(Shader_handle, "LightProperties");
-//
-//    glGetActiveUniformBlockiv(Shader_handle, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
-//    int a = sizeof(LightProperties);
-//    lightMaterialBuffer = new GLubyte[blockSize];
-//
-//    constexpr int num = 2;
-//    const GLchar* names[num] = { "LightProperties.activeLight", ".light[0]"};
-//    GLuint indices[num];
-//    glGetUniformIndices(Shader_handle, num, names, indices);
-//    offset.resize(num);
-//    glGetActiveUniformsiv(Shader_handle, num, indices, GL_UNIFORM_OFFSET, &offset[0]);
-//
-//    memcpy(lightMaterialBuffer + offset[0], &position, sizeof(position));
-//    memcpy(lightMaterialBuffer + offset[1], &material.ambient, sizeof(material.ambient));
-//    memcpy(lightMaterialBuffer + offset[2], &material.diffuse, sizeof(material.diffuse));
-//    memcpy(lightMaterialBuffer + offset[3], &material.specular, sizeof(material.specular));
-//
-//    glGenBuffers(1, &uboHandle);
-//    glBindBuffer(GL_UNIFORM_BUFFER, uboHandle);
-//    glBufferData(GL_UNIFORM_BUFFER, blockSize, lightMaterialBuffer, GL_DYNAMIC_DRAW);
-//}
-
-//void Light::UpdateUniformBlock()
-//{
-//    memcpy(lightMaterialBuffer + offset[0], &position, sizeof(position));
-//    memcpy(lightMaterialBuffer + offset[1], &material.ambient, sizeof(material.ambient));
-//    memcpy(lightMaterialBuffer + offset[2], &material.diffuse, sizeof(material.diffuse));
-//    memcpy(lightMaterialBuffer + offset[3], &material.specular, sizeof(material.specular));
-//    glBindBuffer(GL_UNIFORM_BUFFER, uboHandle);
-//    glBufferData(GL_UNIFORM_BUFFER, blockSize, lightMaterialBuffer, GL_DYNAMIC_DRAW);
-//}
-//
-//void Light::Use()
-//{
-//    glBindBuffer(GL_UNIFORM_BUFFER, uboHandle);
-//    glBindBufferBase(GL_UNIFORM_BUFFER, 0, uboHandle);
-//}
 
 void Light::UpdatePosition(glm::vec3 pos)
 {

@@ -85,7 +85,7 @@ public:
 class Model
 {
 public:
-    Model() : numVertices(0), numTris(0), numIndices(0), vertex_per_face{ 3 }, VBO{ 0 }, VAO{ 0 }, IBO{ 0 }
+    Model() : numVertices(0), numTris(0), numIndices(0), vertex_per_face{ 3 }, VBO{ 0 }, VAO{ 0 }, IBO{ 0 }, uboHandle{0}
     { }
     ~Model();
     std::vector<Vertex> vertexBuffer;
@@ -110,8 +110,11 @@ public:
     void BuildIndexBuffer(int stacks, int slices);
 
     void Calculate_normal();
-    void Calculate_uv_planar();
-    void Calculate_uv_cylindrical(float y_max, float y_min);
+
+    void Calculate_uv_planar(bool usePos);
+    void Calculate_uv_cylindrical(bool usePos);
+    void Calculate_uv_spherical(bool usePos);
+
     void Set_vertex_normal();
     void Set_face_normal();
 

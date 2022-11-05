@@ -21,6 +21,10 @@ struct ImGui_bool
 {
 	bool draw_vtx_normal{ false };
 	bool draw_face_normal{ false };
+	bool calculateUV_GPU{ true };
+	int projectionMode{ 0 };
+	bool UsePosTOuv{ true };
+	bool rotation{ true };
 };
 
 
@@ -54,11 +58,14 @@ private:
 	void create_lights();
 	void reload_shaders(std::string shader);
 	void LightImGui();
-
+	void GlobalImGui();
 	void Draw_CenterObj();
 	void Draw_Lights();
 	void Draw_Plane();
 
+	void Scenario1();
+	void Scenario2();
+	void Scenario3();
 	Camera camera;
 
 	Model* models[count];
@@ -66,6 +73,7 @@ private:
 	std::map<std::string, GLint> shaders;
 
 	Object centerObj;
+	Material material;
 	Object plane;
 	std::vector<Object> lightObj;
 
@@ -74,8 +82,10 @@ private:
 
 	Line circle;
 	ImGui_bool flag;
-	 int active_light;
-	 const int maxLight = 16;
+
+
+
+	const int maxLight = 16;
 	unsigned int metal_diff_ppm;
 	unsigned int metal_spec_ppm;
 };

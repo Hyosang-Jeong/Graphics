@@ -143,12 +143,40 @@ void Model::Calculate_normal()
     Set_vertex_normal();
     Set_face_normal();
 }
-void Model::Calculate_uv_planar()
+void Model::Calculate_uv_planar(bool usePos)
 {
     for (auto& vertex : vertexBuffer)
     {
-        vertex.uv.x = (vertex.pos.x +1.f) / (2.f);
-        vertex.uv.y = (vertex.pos.y + 1.f) / (2.f);
+        glm::vec3 absVec;
+        glm::vec3 v;
+        if (usePos)
+        {
+            absVec = abs(vertex.pos);
+            v = vertex.pos;
+        }
+        else
+        {
+            absVec = abs(vertex.vtx_nrm);
+            v = (glm::normalize(vertex.vtx_nrm) + 1.f)/2.f;
+        }
+        glm::vec2 uv = glm::vec2(0.0);
+
+        if (absVec.x >= absVec.y && absVec.x >= absVec.z)
+        {
+            (v.x < 0.0) ? (uv.x = v.z) : (uv.x = -v.z);
+            uv.y = v.y;
+        }
+        else if (absVec.y >= absVec.x && absVec.y >= absVec.z)
+        {
+            (v.y < 0.0) ? (uv.x = v.x) : (uv.x = -v.x);
+            uv.y = v.z;
+        }
+        else if (absVec.z >= absVec.x && absVec.z >= absVec.y)
+        {
+            (v.z < 0.0) ? (uv.x = v.x) : (uv.x = -v.x);
+            uv.y = v.y;
+        }
+        vertex.uv = (uv+1.f)/2.f;
     }
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     /*  Copy vertex attributes to GPU */
@@ -156,33 +184,21 @@ void Model::Calculate_uv_planar()
         static_cast<GLsizeiptr>(numVertices) * static_cast<GLsizeiptr>(vertexSize), &vertexBuffer[0],
         GL_DYNAMIC_DRAW);
 }
-void Model::Calculate_uv_cylindrical(float y_max, float y_min)
+void Model::Calculate_uv_cylindrical(bool usePos)
 {
-    auto min = std::min_element(vertexBuffer.begin(), vertexBuffer.end(), [](Vertex x, Vertex y) {return x.pos.y < y.pos.y; });
-    auto max = std::max_element(vertexBuffer.begin(), vertexBuffer.end(), [](Vertex x, Vertex y) {return x.pos.y < y.pos.y; });
-    Vertex m = *min;
-    Vertex M = *max;
-    float range = M.pos.y - m.pos.y;
 
     for (auto& vertex : vertexBuffer)
     {
-        float u = glm::degrees(atan(vertex.pos.z/ vertex.pos.x));
-        if (vertex.pos.z < 0)
-        {
-           u *= -1.f;
-           u += 90.f;
-        }
-        if (vertex.pos.x < 0)
-        {
-            if (vertex.pos.z < 0)
-            {
-                u += 180.f;
-            }
-            else
-                u = 360.f + u;
-        }
-        vertex.uv.x = u / 360.f;
-        vertex.uv.y = (vertex.pos.y - m.pos.y) / (range);
+        glm::vec3 v;
+        if (usePos)
+            v = vertex.pos;
+        else
+            v = vertex.vtx_nrm;
+        float ux = glm::degrees(atan2(v.z, v.x));
+        ux += 180.f;
+        float uy = (v.y+1.f) / (2.f);
+        vertex.uv.x = ux / 360.f;
+        vertex.uv.y = uy;
     }
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     /*  Copy vertex attributes to GPU */
@@ -190,6 +206,35 @@ void Model::Calculate_uv_cylindrical(float y_max, float y_min)
         static_cast<GLsizeiptr>(numVertices) * static_cast<GLsizeiptr>(vertexSize), &vertexBuffer[0],
         GL_DYNAMIC_DRAW);
 }
+
+void Model::Calculate_uv_spherical(bool usePos)
+{
+    for (auto& vertex : vertexBuffer)
+    {
+        glm::vec3 v;
+        if (usePos)
+            v = vertex.pos;
+        else
+            v = vertex.vtx_nrm;
+        float  r = sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
+        float theta = glm::degrees(atan2(v.z, v.x));
+        theta += 180.f;
+        float phi = 180.f - glm::degrees(std::acos(v.y / r));
+        
+        vertex.uv.x = theta / 360.f;
+        vertex.uv.y = phi / 180.f;
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    /*  Copy vertex attributes to GPU */
+    glBufferData(GL_ARRAY_BUFFER,
+        static_cast<GLsizeiptr>(numVertices) * static_cast<GLsizeiptr>(vertexSize), &vertexBuffer[0],
+        GL_DYNAMIC_DRAW);
+}
+
+
+
+
 void Model::Set_vertex_normal()
 {
     std::vector<glm::vec3> vertices;
@@ -242,7 +287,7 @@ Model* create_sphere(int stacks, int slices)
 
     mesh->BuildIndexBuffer(stacks, slices);
     mesh->Calculate_normal();
-    mesh->Calculate_uv_cylindrical(1.f,-1.f);
+    mesh->Calculate_uv_cylindrical(true);
     mesh->SendVertexData();
 
     return mesh;
@@ -364,7 +409,7 @@ Model* load_obj(const char* path)
         vertex.pos.z = max.z == min.z ? 0 :  (2.f * ((vertex.pos.z - min.z) / (max.z - min.z))) - 1.f;
     }
     model->Calculate_normal();
-    model->Calculate_uv_cylindrical( max.y,  min.y);
+    model->Calculate_uv_cylindrical(true);
     model->SendVertexData();
     return model;
 }
