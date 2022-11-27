@@ -21,16 +21,17 @@ End Header --------------------------------------------------------*/
 using namespace glm;
 Simple_render::Simple_render() 
 {
-    metal_diff_ppm = load_ppm("../textures/metal_roof_diff_512x512.ppm");
-    metal_spec_ppm = load_ppm("../textures/metal_roof_spec_512x512.ppm");
     create_shaders();
     create_models();
     create_objects();
     create_lights();
     create_spheres_and_lines();
+    load_skybox();
+    metal_diff_ppm = load_image("../textures/metal_roof_diff_512x512.png");
+    metal_spec_ppm = load_image("../textures/metal_roof_spec_512x512.png");
+    setup_skyboxTransform();
     lightUBO.SetUniformBlock(2112, &lights);
-    camera = Camera({ 0.0f, 7.5f, 20.0f });
-    camera.SetPitch(-25.f);
+    camera = Camera({ 0.0f, 0.f, 8.0f });
 }
 
 Simple_render::~Simple_render()
@@ -50,20 +51,19 @@ void Simple_render::Update(float deltaTime)
         for (int i = 0; i < lightObj.size(); i++)
         {
             lightObj[i].position = (glm::vec3{ 4.f * sin(glm::radians(angle * i) + diff), 0 , 4.f * cos(glm::radians(angle * i) + diff) });
-            diff += deltaTime*0.1f;
+            diff += deltaTime * 0.1f;
             lights.light[i].UpdatePosition(lightObj[i].position);
         }
     }
     lightUBO.UpdateUniformBlock();
 
 }
-
 void Simple_render::Draw()
 {
-    circle.Draw(camera.GetCamera(), projection);
+    Draw_Skybox_to_Framebuffer();
+    Draw_Skybox();
     Draw_CenterObj();
     Draw_Lights();
-    Draw_Plane();
     OnImGuiRender();
 }
 
@@ -82,7 +82,7 @@ void Simple_render::OnImGuiRender()
         ImGui::Checkbox("Draw Vertex normal", &flag.draw_vtx_normal);
         ImGui::Checkbox("Draw Face normal", &flag.draw_face_normal);
         static const char* model[] = { "Bunny", "4Sphere", "Cube", "Sphere_modified", "Sphere" };
-        static const char* current_item = model[0];
+        static const char* current_item = model[4];
         if (ImGui::BeginCombo("Model", current_item)) // The second parameter is the label previewed before opening the combo.
         {
             for (int n = 0; n < 5; n++)
@@ -103,11 +103,11 @@ void Simple_render::OnImGuiRender()
     }
     if (ImGui::CollapsingHeader("Shader Control"))
     {
-        static const char* shader[] = { "phong_lighting", "phong_shading","blinn"};
-        static  const char* current_shader = shader[1];
+        static const char* shader[] = { "phong_shading","blinn"};
+        static  const char* current_shader = shader[0];
         if (ImGui::BeginCombo("Shader", current_shader)) // The second parameter is the label previewed before opening the combo.
         {
-            for (int n = 0; n < 3; n++)
+            for (int n = 0; n < 2; n++)
             {
                 bool is_selected = (current_shader == shader[n]);
                 if (ImGui::Selectable(shader[n], is_selected))
@@ -127,7 +127,6 @@ void Simple_render::OnImGuiRender()
         }
     }
 
-
     if (flag.draw_vtx_normal)
     {
         centerObj.Draw_vtx_normal(camera.GetCamera(), projection);
@@ -145,12 +144,12 @@ void Simple_render::OnImGuiRender()
             camera.SetPosition(camera_pos);
         }
         float Yaw = camera.GetYaw();
-        if (ImGui::SliderFloat("Camera Yaw", &Yaw, -125.f, -45.f))
+        if (ImGui::SliderFloat("Camera Yaw", &Yaw, 0, 360.f))
         {
             camera.SetYaw(Yaw);
         }
         float Pitch = camera.GetPitch();
-        if (ImGui::SliderFloat("Camera Pitch", &Pitch, -50.f, 0.f))
+        if (ImGui::SliderFloat("Camera Pitch", &Pitch, -360.f, 0.f))
         {
             camera.SetPitch(Pitch);
         }
@@ -158,28 +157,7 @@ void Simple_render::OnImGuiRender()
     if (ImGui::CollapsingHeader("Material"))
     {
         ImGui::Text("Surface Color Tints");
-        static float MaterialAmbient[] = { material.ambient.x,material.ambient.y,material.ambient.z };
-        static float MaterialDiffuse[] = { material.diffuse.x,material.diffuse.y,material.diffuse.z };
-        static float MaterialSpecular[] = { material.specular.x,material.specular.y,material.specular.z };
         static float MaterialEmissive[] = { material.emissive.x,material.emissive.y,material.emissive.z };
-        if (ImGui::ColorEdit3("Ambient", MaterialAmbient))
-        {
-            material.ambient.x = MaterialAmbient[0];
-            material.ambient.y = MaterialAmbient[1];
-            material.ambient.z = MaterialAmbient[2];
-        }
-        if (ImGui::ColorEdit3("Diffuse", MaterialDiffuse))
-        {
-            material.diffuse.x = MaterialDiffuse[0];
-            material.diffuse.y = MaterialDiffuse[1];
-            material.diffuse.z = MaterialDiffuse[2];
-        }
-        if (ImGui::ColorEdit3("Specular", MaterialSpecular))
-        {
-            material.specular.x = MaterialSpecular[0];
-            material.specular.y = MaterialSpecular[1];
-            material.specular.z = MaterialSpecular[2];
-        }
         if (ImGui::ColorEdit3("Emissive", MaterialEmissive))
         {
             material.emissive.x = MaterialEmissive[0];
@@ -187,94 +165,8 @@ void Simple_render::OnImGuiRender()
             material.emissive.z = MaterialEmissive[2];
         }
 
-
-        static const char* projection[] = { "Cylindrical", "Spherical","Cube"};
-        static  const char* current_projection = projection[0];
-        static const char* entities[] = { "Position", "Normal" };
-        static  const char* current_entity = entities[0];
-        if (ImGui::BeginCombo("Texture projection mode", current_projection)) // The second parameter is the label previewed before opening the combo.
-        {
-            for (int n = 0; n < 3; n++)
-            {
-                bool is_selected = (current_projection == projection[n]);
-                if (ImGui::Selectable(projection[n], is_selected))
-                {
-                    current_projection = projection[n];
-                    flag.projectionMode = n;
-                    switch (n)
-                    {
-                    case 0: centerObj.model->Calculate_uv_cylindrical(current_entity == entities[0]?true:false);
-                        break;
-                    case 1: centerObj.model->Calculate_uv_spherical(current_entity == entities[0] ? true : false);
-                        break;
-                    case 2: centerObj.model->Calculate_uv_planar(current_entity == entities[0] ? true : false);
-                        break;
-                    default:
-                        break;
-                    }
-                }
-                if (is_selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-            ImGui::EndCombo();
-        }
-
-        if (ImGui::BeginCombo("Texture Entity", current_entity)) // The second parameter is the label previewed before opening the combo.
-        {
-            for (int n = 0; n < 2; n++)
-            {
-                bool is_selected = (current_entity == entities[n]);
-                if (ImGui::Selectable(entities[n], is_selected))
-                {
-                    current_entity = entities[n];
-                    flag.UsePosTOuv = (current_entity == entities[0] ? true : false);
-                    switch (flag.projectionMode)
-                    {
-                    case 0: centerObj.model->Calculate_uv_cylindrical(current_entity == entities[0] ? true : false);
-                        break;
-                    case 1: centerObj.model->Calculate_uv_spherical(current_entity == entities[0] ? true : false);
-                        break;
-                    case 2: centerObj.model->Calculate_uv_planar(current_entity == entities[0] ? true : false);
-                        break;
-                    default:
-                        break;
-                    }
-                }
-                if (is_selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-            ImGui::EndCombo();
-        }
-
-
-        static const char* UV[] = { "CPU", "GPU" };
-        static  const char* current_UV = UV[1];
-        if (ImGui::BeginCombo("Calculation in", current_UV)) // The second parameter is the label previewed before opening the combo.
-        {
-            for (int n = 0; n < 2; n++)
-            {
-                bool is_selected = (current_UV == UV[n]);
-                if (ImGui::Selectable(UV[n], is_selected))
-                {
-                    current_UV = UV[n];
-                    flag.calculateUV_GPU = n;
-                }
-                if (is_selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-            ImGui::EndCombo();
-        }
-
-
-
+        EnvironmentImGui();
     }
-
 
     GlobalImGui();
 
@@ -283,9 +175,10 @@ void Simple_render::OnImGuiRender()
 
 void Simple_render::create_shaders()
 {
-    shaders["phong_lighting"] = setup_shdrpgm("phong_lighting");
     shaders["phong_shading"] = setup_shdrpgm("phong_shading");
     shaders["blinn"] = setup_shdrpgm("blinn");
+    shaders["skybox"] = setup_shdrpgm("skybox");
+
     shaders["lighting"] = setup_shdrpgm("lighting");
 }
 
@@ -311,6 +204,9 @@ void Simple_render::create_models()
 
     models[Plane] = load_obj("../obj/quad.obj");
     std::cout << "Load :plane model" << std::endl;
+
+    models[Skybox] = create_cubeMap();
+    std::cout << "Load :cubeMap" << std::endl;
 }
 
 void Simple_render::create_spheres_and_lines()
@@ -321,46 +217,28 @@ void Simple_render::create_spheres_and_lines()
        Object obj(shaders["lighting"]);
        obj.position = glm::vec3{ radius * sin(glm::radians(360.f / (float)maxLight * i)), 0, radius * cos(glm::radians(360.f / (float)maxLight * i)) };
        obj.scale = glm::vec3(0.2f);
-       obj.model = models[Sphere];
+       obj.model = models[sphere];
        lightObj.push_back(obj);
     }
-
-    std::vector<vec3> vertices;
-    int num_points = 720;
-    float angle = 360.f / static_cast<float>(num_points);
-
-    for (int i = 0; i < num_points; i++)
-    {
-        vertices.push_back({ radius * cos(glm::radians(angle * static_cast<float>(i))) , 0 ,radius * sin(glm::radians(angle * static_cast<float>(i))) });
-        vertices.push_back({ radius * cos(glm::radians(angle * static_cast<float>(i + 1))) , 0 ,radius * sin(glm::radians(angle * static_cast<float>(i + 1))) });
-    }
-    circle.init(vertices);
-
-
 }
 void Simple_render::create_objects()
 {
-    //plane 
-    { 
-        Object obj(shaders["phong_shading"]);
-        obj.position = glm::vec3{ 0,-1,0 };
-        obj.scale = glm::vec3(10);
-        obj.rotation = glm::vec3(-pi<float>() / 2.f, 0, 0);
-        obj.model = models[Plane];
-        plane = obj;
-    }
 
-    {
         Object obj(shaders["phong_shading"]);
         obj.position = glm::vec3{ 0,0,0 };
         obj.scale = glm::vec3(1.f);
-        obj.model = models[Bunny];
+        obj.model = models[sphere];
+
         centerObj = obj;
         material.ambient = glm::vec3(0.f,0.f,3.f/255.f);
         material.diffuse = glm::vec3(1.f);
         material.specular = glm::vec3(1.f);
         material.emissive = glm::vec3(0.f);
-    }
+
+        Object obj2(shaders["skybox"]);
+        obj2.model = models[Skybox];
+        SkyBox = obj2;
+
 }
 
 void Simple_render::create_lights()
@@ -372,17 +250,49 @@ void Simple_render::create_lights()
     }
     lights.activeLight = 1;
 }
+ 
+void Simple_render::load_skybox()
+{
+    skyBoxTextures.push_back(load_image("../textures/left.jpg"));
+    skyBoxTextures.push_back(load_image("../textures/right.jpg"));
+    skyBoxTextures.push_back(load_image("../textures/bottom.jpg"));
+    skyBoxTextures.push_back(load_image("../textures/top.jpg"));
+    skyBoxTextures.push_back(load_image("../textures/back.jpg"));
+    skyBoxTextures.push_back(load_image("../textures/front.jpg"));
+
+    for (int i = 0; i < 6; i++)
+    {
+        unsigned int texture;
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1600, 1000, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        emptyTextures.push_back(texture);
+    }
+}
+
+void Simple_render::setup_skyboxTransform()
+{
+    skyBoxTransform[0] = (glm::perspective(glm::radians(90.0f), 1.f, 0.1f, 100.f) * glm::lookAt(glm::vec3(0),  glm::vec3(1.0, 0.0, 0.0), glm::vec3(0.0, 1.0, 0.0)));
+    skyBoxTransform[1] = (glm::perspective(glm::radians(90.0f), 1.f, 0.1f, 100.f) * glm::lookAt(glm::vec3(0),  glm::vec3(-1.0, 0.0, 0.0), glm::vec3(0.0,  1.0, 0.0)));
+    skyBoxTransform[2] = (glm::perspective(glm::radians(90.0f), 1.f, 0.1f, 100.f) * glm::lookAt(glm::vec3(0),  glm::vec3(0.0, -1.0, 0.0), glm::vec3(0.0, 0.0, 1.0)));
+    skyBoxTransform[3] = (glm::perspective(glm::radians(90.0f), 1.f, 0.1f, 100.f) * glm::lookAt(glm::vec3(0),  glm::vec3(0.0, 1.0, 0.0), glm::vec3(0.0, 0.0,-1.0)));
+    skyBoxTransform[4] = (glm::perspective(glm::radians(90.0f), 1.f, 0.1f, 100.f) * glm::lookAt(glm::vec3(0),  glm::vec3(0.0, 0.0, -1.0), glm::vec3(0.0, 1.0, 0.0)));
+    skyBoxTransform[5] = (glm::perspective(glm::radians(90.0f), 1.f, 0.1f, 100.f) * glm::lookAt(glm::vec3(0),  glm::vec3(0.0, 0.0, 1.0), glm::vec3(0.0, 1.0, 0.0)));
+}
 
 void Simple_render::reload_shaders(std::string shader)
 {
+    shaders[shader] = setup_shdrpgm(shader);
     centerObj.Shader_handle = shaders[shader];
-    plane.Shader_handle = shaders[shader];
 }
 
 void Simple_render::LightImGui()
 {
     ImGui::Begin("Light");
-
     static const char* Lights[] =
     { "Light#1",
        "Light#2" ,
@@ -543,46 +453,123 @@ void Simple_render::GlobalImGui()
     ImGui::End();
 }
 
+void Simple_render::EnvironmentImGui()
+{
+    ImGui::Text("Environment Mapping");
+    ImGui::Checkbox("Visualize Reflaction", &flag.UseReflaction);
+    ImGui::Checkbox("Visualize Refraction", &flag.UseRefraction);
+    static const char* Refraction_Materials[] =
+    {  "Air",
+       "Hydrogen" ,
+       "Water",
+       "Olive_Oil",
+       "Ice",
+       "Quartz",
+       "Diamond",
+       "Acrylic",
+        "plexiglas",
+        "Lucite"  
+    };
+    static  const char* currentName= Refraction_Materials[0];
+    static int current = 0;
+
+    static float RefractionMaterialsValue[] = 
+    {
+         1.0003f,
+         1.0001f,
+         1.333f,
+         1.47f,
+         1.31f,
+         1.46f,
+         2.42f,
+         1.49f,
+         1.49f,
+         1.49f
+    };
+
+    refractive_index = RefractionMaterialsValue[current];
+    ImGui::ListBox("Refraction Materials", &current, Refraction_Materials, 10);
+    ImGui::SliderFloat("Refraction Index", &refractive_index, 1.f, 100.f);
+    ImGui::SliderFloat("FresnelPower",&FresnelPower,0.1f,1.f);
+    ImGui::SliderFloat("Phong & Environment Ratio", &PhongEnvironmentRatio, 0.f, 1.f);
+}
+
 void Simple_render::Draw_CenterObj()
 {
         glUseProgram(centerObj.Shader_handle);
+    
+        GLint texture = glGetUniformLocation(centerObj.Shader_handle, "skybox_LEFT");
+        glUniform1i(texture, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, emptyTextures[0]);
+
+        texture = glGetUniformLocation(centerObj.Shader_handle, "skybox_RIGHT");
+        glUniform1i(texture, 1);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, emptyTextures[1]);
+
+        texture = glGetUniformLocation(centerObj.Shader_handle, "skybox_BOTTOM");
+        glUniform1i(texture, 2);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, emptyTextures[2]);
+
+        texture = glGetUniformLocation(centerObj.Shader_handle, "skybox_TOP");
+        glUniform1i(texture, 3);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, emptyTextures[3]);
+
+        texture = glGetUniformLocation(centerObj.Shader_handle, "skybox_BACK");
+        glUniform1i(texture, 4);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, emptyTextures[4]);
+
+        texture = glGetUniformLocation(centerObj.Shader_handle, "skybox_FRONT");
+        glUniform1i(texture, 5);
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, emptyTextures[5]);
 
         GLint diffuse_texture = glGetUniformLocation(centerObj.Shader_handle, "DiffuseMap");
-        glUniform1d(diffuse_texture, 0);
-        glActiveTexture(GL_TEXTURE0);
+        glUniform1i(diffuse_texture, 10);
+        glActiveTexture(GL_TEXTURE10);
         glBindTexture(GL_TEXTURE_2D, metal_diff_ppm);
 
         diffuse_texture = glGetUniformLocation(centerObj.Shader_handle, "SpecularMap");
-        glUniform1d(diffuse_texture, 1);
-        glActiveTexture(GL_TEXTURE1);
+        glUniform1i(diffuse_texture, 11);
+        glActiveTexture(GL_TEXTURE11);
         glBindTexture(GL_TEXTURE_2D, metal_spec_ppm);
 
-        GLint light_loc = glGetUniformLocation(centerObj.Shader_handle, "UseTexture");
-        glUniform1i(light_loc, true);
+        GLint Uniformloc = glGetUniformLocation(centerObj.Shader_handle, "UseTexture");
+        glUniform1i(Uniformloc, true);
 
-        light_loc = glGetUniformLocation(centerObj.Shader_handle, "viewPos");
-        glUniform3f(light_loc, camera.GetPosition().x, camera.GetPosition().y, camera.GetPosition().z);
+        Uniformloc = glGetUniformLocation(centerObj.Shader_handle, "viewPos");
+        glUniform3f(Uniformloc, camera.GetPosition().x, camera.GetPosition().y, camera.GetPosition().z);
 
-        light_loc = glGetUniformLocation(centerObj.Shader_handle, "material_Ambient");
-        glUniform3fv(light_loc, 1, &material.ambient.x);
+        Uniformloc = glGetUniformLocation(centerObj.Shader_handle, "material_Ambient");
+        glUniform3fv(Uniformloc, 1, &material.ambient.x);
 
-        light_loc = glGetUniformLocation(centerObj.Shader_handle, "material_Diffuse");
-        glUniform3fv(light_loc, 1, &material.diffuse.x);
+        Uniformloc = glGetUniformLocation(centerObj.Shader_handle, "material_Diffuse");
+        glUniform3fv(Uniformloc, 1, &material.diffuse.x);
 
-        light_loc = glGetUniformLocation(centerObj.Shader_handle, "material_Specular");
-        glUniform3fv(light_loc, 1, &material.specular.x);
+        Uniformloc = glGetUniformLocation(centerObj.Shader_handle, "material_Specular");
+        glUniform3fv(Uniformloc, 1, &material.specular.x);
 
-        light_loc = glGetUniformLocation(centerObj.Shader_handle, "material_Emissive");
-        glUniform3fv(light_loc, 1, &material.emissive.x);
+        Uniformloc = glGetUniformLocation(centerObj.Shader_handle, "material_Emissive");
+        glUniform3fv(Uniformloc, 1, &material.emissive.x);
 
-        light_loc = glGetUniformLocation(centerObj.Shader_handle, "UseUVFromGPU");
-        glUniform1i(light_loc, flag.calculateUV_GPU);
+        Uniformloc = glGetUniformLocation(centerObj.Shader_handle, "VisualRefraction");
+        glUniform1i(Uniformloc, flag.UseRefraction);
 
-        light_loc = glGetUniformLocation(centerObj.Shader_handle, "UVprojectionType");
-        glUniform1i(light_loc, flag.projectionMode);
+        Uniformloc = glGetUniformLocation(centerObj.Shader_handle, "VisualReflection");
+        glUniform1i(Uniformloc, flag.UseReflaction);
 
-        light_loc = glGetUniformLocation(centerObj.Shader_handle, "UsePosTOuv");
-        glUniform1i(light_loc, flag.UsePosTOuv);
+        Uniformloc = glGetUniformLocation(centerObj.Shader_handle, "RefractionIndex");
+        glUniform1f(Uniformloc, refractive_index);
+
+        Uniformloc = glGetUniformLocation(centerObj.Shader_handle, "FresnelPower");
+        glUniform1f(Uniformloc, FresnelPower);
+
+        Uniformloc = glGetUniformLocation(centerObj.Shader_handle, "PhongEnvironmentRatio");
+        glUniform1f(Uniformloc, PhongEnvironmentRatio);
 
         lightUBO.Use();
         centerObj.Draw(camera.GetCamera(), projection);
@@ -599,18 +586,107 @@ void Simple_render::Draw_Lights()
     }
 }
 
-void Simple_render::Draw_Plane()
+void Simple_render::Draw_Skybox()
 {
-    glUseProgram(plane.Shader_handle);
+        glUseProgram(SkyBox.Shader_handle);
+        glDepthMask(GL_FALSE);
+        glDisable(GL_DEPTH_TEST);
+        GLint texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_LEFT");
+        glUniform1i(texture, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[0]);
+
+        texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_RIGHT");
+        glUniform1i(texture, 1);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[1]);
+
+        texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_BOTTOM");
+        glUniform1i(texture, 2);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[2]);
+
+        texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_TOP");
+        glUniform1i(texture, 3);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[3]);
+
+        texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_BACK");
+        glUniform1i(texture, 4);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[4]);
+
+        texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_FRONT");
+        glUniform1i(texture, 5);
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[5]);
+
+        GLint Transform_loc = glGetUniformLocation(SkyBox.Shader_handle, "projection");
+ 
+        glm::mat4 tmp = glm::perspective(glm::radians(90.0f), 1.f, 0.1f, 100.f) * glm::mat4(glm::mat3(camera.GetCamera()));
+        glUniformMatrix4fv(Transform_loc, 1, GL_FALSE, &tmp[0].x);
+
+        SkyBox.model->Use();
+        glDrawElements(GL_TRIANGLES, SkyBox.model->numIndices, GL_UNSIGNED_INT, nullptr);
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
+}
+
+void Simple_render::Draw_Skybox_to_Framebuffer()
+{
+    fbo.Use();
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    for (int i = 0; i < 6; i++)
+    {
+        glUseProgram(SkyBox.Shader_handle);
+        fbo.AttachTexture(emptyTextures[i]);
     
-    GLint light_loc = glGetUniformLocation(plane.Shader_handle, "UseTexture");
-    glUniform1i(light_loc, false);
+        GLint texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_LEFT");
+        glUniform1i(texture, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[0]);
 
-    light_loc = glGetUniformLocation(plane.Shader_handle, "viewPos");
-    glUniform3f(light_loc, camera.GetPosition().x, camera.GetPosition().y, camera.GetPosition().z);
+        texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_RIGHT");
+        glUniform1i(texture, 1);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[1]);
 
-    lightUBO.Use();
-    plane.Draw(camera.GetCamera(), projection);
+        texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_BOTTOM");
+        glUniform1i(texture, 2);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[2]);
+
+        texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_TOP");
+        glUniform1i(texture, 3);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[3]);
+
+        texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_BACK");
+        glUniform1i(texture, 4);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[4]);
+
+        texture = glGetUniformLocation(SkyBox.Shader_handle, "skybox_FRONT");
+        glUniform1i(texture, 5);
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, skyBoxTextures[5]);
+
+        GLint Transform_loc = glGetUniformLocation(SkyBox.Shader_handle, "projection");
+
+        glUniformMatrix4fv(Transform_loc, 1, GL_FALSE, &skyBoxTransform[i][0].x);
+
+        SkyBox.model->Use();
+        glDrawElements(GL_TRIANGLES, SkyBox.model->numIndices, GL_UNSIGNED_INT, nullptr);
+
+        for (int j = 0; j < lights.activeLight; j++)
+        {
+            glUseProgram(lightObj[j].Shader_handle);
+            GLint light_loc = glGetUniformLocation(lightObj[j].Shader_handle, "diffuse");
+            glUniform3f(light_loc, lights.light[j].material.diffuse.x, lights.light[j].material.diffuse.y, lights.light[j].material.diffuse.z);
+            lightObj[j].Draw(glm::mat4(1), skyBoxTransform[i]);
+        }
+    }
+      fbo.UnUse();
 }
 
 void Simple_render::Scenario1()

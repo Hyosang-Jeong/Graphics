@@ -17,14 +17,14 @@ End Header --------------------------------------------------------*/
 #include"Camera.h"
 #include"Light.h"
 #include"LightUBO.h"
+#include"FBO.h"
 struct ImGui_bool
 {
 	bool draw_vtx_normal{ false };
 	bool draw_face_normal{ false };
-	bool calculateUV_GPU{ true };
-	int projectionMode{ 0 };
-	bool UsePosTOuv{ true };
 	bool rotation{ true };
+	bool UseReflaction{ true };
+	bool UseRefraction{ true };
 };
 
 
@@ -37,8 +37,11 @@ enum  model_name
 	sphere, //from obj file
 	Sphere, //from code
 	Plane,
+	Skybox,
 	count
 };
+
+
 class Simple_render : public Scene
 {
 public:
@@ -56,36 +59,42 @@ private:
 	void create_spheres_and_lines();
 	void create_objects();
 	void create_lights();
+	void load_skybox();
+	void setup_skyboxTransform();
 	void reload_shaders(std::string shader);
 	void LightImGui();
 	void GlobalImGui();
+	void EnvironmentImGui();
 	void Draw_CenterObj();
 	void Draw_Lights();
-	void Draw_Plane();
-
+	void Draw_Skybox();
+	void Draw_Skybox_to_Framebuffer();
 	void Scenario1();
 	void Scenario2();
 	void Scenario3();
 	Camera camera;
 
 	Model* models[count];
-
 	std::map<std::string, GLint> shaders;
 
 	Object centerObj;
+	Object SkyBox;
 	Material material;
-	Object plane;
-	std::vector<Object> lightObj;
 
+	std::vector<Object> lightObj;
 	LightProperties lights;
 	LightUBO lightUBO;
 
-	Line circle;
 	ImGui_bool flag;
-
-
 
 	const int maxLight = 16;
 	unsigned int metal_diff_ppm;
 	unsigned int metal_spec_ppm;
+	std::vector<unsigned int> skyBoxTextures;
+	std::vector<unsigned int> emptyTextures;
+	FBO fbo;
+	glm::mat4 skyBoxTransform[6];
+	float refractive_index = 1.0003f;
+	float FresnelPower = 0.5f;
+	float PhongEnvironmentRatio = 0.9f;
 };

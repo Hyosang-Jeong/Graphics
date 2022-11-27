@@ -10,7 +10,7 @@ Project:  Hyosang Jung_CS300_1
 Author: Hyosang Jung, hyosang.jung, 055587
 Creation date: 2022 - 09 - 12
 End Header --------------------------------------------------------*/
-#version 430 core
+#version 450 core
 
 layout(location=1) in vec3 NRM;
 
@@ -21,6 +21,12 @@ out vec4 outColor;
 
 uniform sampler2D DiffuseMap;
 uniform sampler2D SpecularMap;
+uniform sampler2D skybox_LEFT;
+uniform sampler2D skybox_RIGHT;
+uniform sampler2D skybox_BOTTOM;
+uniform sampler2D skybox_TOP;
+uniform sampler2D skybox_BACK;
+uniform sampler2D skybox_FRONT;
 
 uniform vec3 viewPos;
 uniform bool UseTexture;
@@ -33,6 +39,11 @@ uniform vec3 material_Diffuse;
 uniform vec3 material_Specular;
 uniform vec3 material_Emissive;
 
+uniform bool VisualRefraction;
+uniform bool VisualReflection;
+uniform float RefractionIndex;
+uniform float FresnelPower;
+uniform float PhongEnvironmentRatio;
 vec3 norm = normalize(NRM);
 vec3 viewDir = normalize(viewPos - FragPos);
 
@@ -67,14 +78,10 @@ struct Material
     float ns;
 };
 
-vec2 calcUV_cylindrical()
+vec2 calcUV_cylindrical(vec3 entity)
 {
-    vec3 v;
+    vec3 v = entity;
     vec2 uv;
-    if (UsePosTOuv)
-        v = FragPos;
-    else
-        v = norm;
     float ux = degrees(atan(v.z/ v.x));
     ux += 180.f;
     float uy = (v.y+1.f) / (2.f);
@@ -82,14 +89,10 @@ vec2 calcUV_cylindrical()
     uv.y = uy;
     return uv;
 }
-vec2 calcUV_spherical()
+vec2 calcUV_spherical(vec3 entity)
 {
-    vec3 v;
+    vec3 v = entity;
     vec2 uv;
-    if (UsePosTOuv)
-        v = FragPos;
-    else
-        v = norm;
     float  r = sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
     float theta = degrees(atan(v.z/v.x));
     theta += 180.f;
@@ -99,51 +102,100 @@ vec2 calcUV_spherical()
 
     return uv;
 }
-vec2 calcUV_cube()
-{
-    vec3 absVec;
-    vec3 v;
+vec2 calcUV_cube(vec3 entity)
+{ 
 
-    vec2 uv;
-    if (UsePosTOuv)
-    {
-        absVec = abs(FragPos);
-        v = FragPos;
-    }
-    else
-    {
-        absVec = abs(norm);
-        v = norm;
-    }   
-    if (absVec.x >= absVec.y && absVec.x >= absVec.z)
-    {
-        (v.x < 0.0) ? (uv.x = v.z) : (uv.x = -v.z);
-        uv.y = v.y;
-    }
-    else if (absVec.y >= absVec.x && absVec.y >= absVec.z)
-    {
-        (v.y < 0.0) ? (uv.x = v.x) : (uv.x = -v.x);
-        uv.y = v.z;
-    }
-    else if (absVec.z >= absVec.x && absVec.z >= absVec.y)
-    {
-        (v.z < 0.0) ? (uv.x = v.x) : (uv.x = -v.x);
-        uv.y = v.y;
-    }
-    uv = (uv+1.f)/2.f;
-    return uv;
+  float x = entity.x;
+  float y = entity.y;
+  float z = entity.z;
+  float absX = abs(x);
+  float absY = abs(y);
+  float absZ = abs(z);
+  bool isXPositive = x > 0 ? true : false;
+  bool isYPositive = y > 0 ? true : false;
+  bool isZPositive = z > 0 ? true : false;
+  
+  float maxAxis =0;
+  float uc =0;
+  float vc =0;
+  
+  // POSITIVE X
+  if (isXPositive && absX >= absY && absX >= absZ) {
+    // u (0 to 1) goes from +z to -z
+    // v (0 to 1) goes from -y to +y
+    maxAxis = absX;
+    uc = -z;
+    vc = y;
+  }
+  // NEGATIVE X
+  else if (!isXPositive && absX >= absY && absX >= absZ) {
+    // u (0 to 1) goes from -z to +z
+    // v (0 to 1) goes from -y to +y
+    maxAxis = absX;
+    uc = z;
+    vc = y;
+  }
+  // POSITIVE Y
+  else if (isYPositive && absY >= absX && absY >= absZ) {
+    // u (0 to 1) goes from -x to +x
+    // v (0 to 1) goes from +z to -z
+    maxAxis = absY;
+    uc = x;
+    vc = -z;
+  }
+  // NEGATIVE Y
+  else if (!isYPositive && absY >= absX && absY >= absZ) {
+    // u (0 to 1) goes from -x to +x
+    // v (0 to 1) goes from -z to +z
+    maxAxis = absY;
+    uc = x;
+    vc = z;
+  }
+  // POSITIVE Z
+  else if (isZPositive && absZ >= absX && absZ >= absY) {
+    // u (0 to 1) goes from -x to +x
+    // v (0 to 1) goes from -y to +y
+    maxAxis = absZ;
+    uc = x;
+    vc = y;
+  }
+  // NEGATIVE Z
+  else if (!isZPositive && absZ >= absX && absZ >= absY) {
+    // u (0 to 1) goes from +x to -x
+    // v (0 to 1) goes from -y to +y
+    maxAxis = absZ;
+    uc = -x;
+    vc = y;
+  }
+
+  vec2 uv=vec2(0,0);
+  // Convert range from -1 to 1 to 0 to 1
+  uv.x = 0.5f * (uc / maxAxis + 1.0f);
+  uv.y = 0.5f * (vc / maxAxis + 1.0f);
+  return uv;
 }
 
 
 vec2 CalcUV(int mode)
 {
     vec2 UV;
-    if(mode == 0)
-        UV = calcUV_cylindrical();
-    else if(mode ==1)
-        UV = calcUV_spherical();
+    vec3 v;
+    if (UsePosTOuv)
+        v = FragPos;
     else
-        UV = calcUV_cube();
+        v = norm;
+    if(mode == 0)
+    {     
+        UV = calcUV_cylindrical(v);
+    }
+    else if(mode ==1)
+    {
+        UV = calcUV_spherical(v);
+    }
+    else
+    {
+        UV = calcUV_cube(v);
+    }
 
     return UV;
 }
@@ -272,6 +324,93 @@ vec3 CalcSpotLight(Light light)
     }
 } 
 
+vec3 GetCubeTexture(vec3 v)
+{
+    vec3 absVec = abs(v);
+    vec2 uv = vec2(0,0);
+    if( absVec.x >= absVec.y && absVec.x >= absVec.z )  
+    {
+        (v.x < 0.0) ? (uv.x =-v.z/ absVec.x) : (uv.x = v.z/ absVec.x );
+        uv.y = v.y / absVec.x;
+        uv = (uv+1.f)/2.f;
+
+        if(v.x < 0)
+            return texture(skybox_RIGHT, uv).rgb;
+        else
+            return texture(skybox_LEFT, uv).rgb;
+    }
+    else if( absVec.y >= absVec.x && absVec.y >= absVec.z ) 
+    {
+        (v.y < 0.0) ? (uv.y = v.z / absVec.y) : (uv.y =  -v.z / absVec.y);
+        uv.x =-v.x / absVec.y;
+        uv = (uv+1.f)/2.f;
+
+        if(v.y < 0)
+            return texture(skybox_BOTTOM, uv).rgb;
+        else
+            return texture(skybox_TOP, uv).rgb;
+    }
+    else if( absVec.z >= absVec.x && absVec.z >= absVec.y ) 
+    {
+         (v.z < 0.0) ? (uv.x = v.x / absVec.z) : (uv.x = -v.x / absVec.z);
+         uv.y = v.y / absVec.z;
+         uv = (uv+1.f)/2.f;
+
+        if(v.z < 0)
+            return texture(skybox_BACK, uv).rgb;
+        else
+            return texture(skybox_FRONT, uv).rgb;
+    }
+}
+
+vec3 CalcEnvironmentReflection()
+{
+    vec3 I = normalize(viewPos-FragPos);
+
+    vec3 N = normalize(NRM);
+
+
+    vec3 reflectDir = (2*dot(N,I) * N - I);
+    return GetCubeTexture(reflectDir);
+
+}
+
+vec3 CalcEnvironmentRefraction() 
+{
+    vec3 I = normalize(viewPos - FragPos);
+    vec3 N = normalize(NRM);
+    float K = 1.0/RefractionIndex;
+    float d = dot(N,I);
+
+    float EtaR = K*0.99;
+    float EtaG = K; // Ratio of indices of refraction
+    float EtaB = K*1.01;
+
+    vec3 RefractR_T = (EtaR*d - sqrt(1-pow(EtaR,2)*(1-pow(d,2))))*N - (EtaR*I);
+    vec3 RefractG_T = (EtaG*d - sqrt(1-pow(EtaG,2)*(1-pow(d,2))))*N - (EtaG*I);
+    vec3 RefractB_T = (EtaB*d - sqrt(1-pow(EtaB,2)*(1-pow(d,2))))*N - (EtaB*I);
+
+    RefractR_T = GetCubeTexture(RefractR_T);
+    RefractG_T = GetCubeTexture(RefractG_T);
+    RefractB_T = GetCubeTexture(RefractB_T);    
+    vec3 RefractColor;
+    RefractColor.r = RefractR_T.r;
+    RefractColor.g = RefractG_T.g;
+    RefractColor.b = RefractB_T.b;
+
+    return RefractColor;
+}
+
+float CalcRatio()
+{
+    vec3 I = normalize(viewPos - FragPos);
+    vec3 N = normalize(NRM);
+    float Eta = 1.0/RefractionIndex;
+    float F = ((1.0-Eta) * (1.0-Eta)) / ((1.0+Eta) * (1.0+Eta));
+
+    float Ratio = F + (1.0 - F) * pow((1.0 - dot(-I, N)), FresnelPower);
+    return Ratio;
+}
 void main(void)
 {
     vec3 result = vec3(0);
@@ -296,5 +435,15 @@ void main(void)
     float S = (lightProperties.fog_far - abs(viewPos.z - FragPos.z))/(lightProperties.fog_far - lightProperties.fog_near);
     vec3 final = (S*result) + (1-S)*lightProperties.fogColor;
 
-	 outColor =  vec4( final, 1.0);   
+    vec3 EnvironmentColor=vec3(0);
+    if(VisualReflection && !VisualRefraction)
+        EnvironmentColor=  CalcEnvironmentReflection();   
+    if(VisualRefraction && !VisualReflection)
+        EnvironmentColor=  CalcEnvironmentRefraction();   
+    if(VisualRefraction && VisualReflection)
+        EnvironmentColor = mix(CalcEnvironmentRefraction(),CalcEnvironmentReflection(),CalcRatio());
+	
+
+    outColor =  vec4( mix(final,EnvironmentColor,PhongEnvironmentRatio), 1.0);   
+   
 }

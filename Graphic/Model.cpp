@@ -163,18 +163,18 @@ void Model::Calculate_uv_planar(bool usePos)
 
         if (absVec.x >= absVec.y && absVec.x >= absVec.z)
         {
-            (v.x < 0.0) ? (uv.x = v.z) : (uv.x = -v.z);
+            (v.x < 0.0) ? (uv.x =-v.z/absVec.x) : (uv.x = v.z / absVec.x);
             uv.y = v.y;
         }
         else if (absVec.y >= absVec.x && absVec.y >= absVec.z)
         {
-            (v.y < 0.0) ? (uv.x = v.x) : (uv.x = -v.x);
-            uv.y = v.z;
+            (v.y < 0.0) ? (uv.x =-v.x / absVec.y) : (uv.x = v.x / absVec.y);
+            uv.y = v.z / absVec.y;
         }
-        else if (absVec.z >= absVec.x && absVec.z >= absVec.y)
+        else if (absVec.z >= absVec.y && absVec.z >= absVec.x)
         {
-            (v.z < 0.0) ? (uv.x = v.x) : (uv.x = -v.x);
-            uv.y = v.y;
+            (v.z < 0.0) ? (uv.x = -v.x / absVec.z) : (uv.x = v.x / absVec.z);
+            uv.y = v.y / absVec.z;
         }
         vertex.uv = (uv+1.f)/2.f;
     }
@@ -409,7 +409,86 @@ Model* load_obj(const char* path)
         vertex.pos.z = max.z == min.z ? 0 :  (2.f * ((vertex.pos.z - min.z) / (max.z - min.z))) - 1.f;
     }
     model->Calculate_normal();
-    model->Calculate_uv_cylindrical(true);
+    model->Calculate_uv_spherical(true);
+    model->SendVertexData();
+    return model;
+}
+
+Model* create_cubeMap()
+{
+    Model* model = new Model();
+
+    glm::vec3 skyboxVertices[] = {
+        // positions      
+        //front face
+          glm::vec3 {- 1.0f,  -1.0f, 1.0f },
+          glm::vec3 {-1.0f, 1.0f, 1.0f},
+          glm::vec3 {1.0f, 1.0f,  1.0f},
+          glm::vec3 {1.0f, -1.0f, 1.0f},
+
+         //back face
+        glm::vec3 {-1.0f,  -1.0f, -1.0f},
+        glm::vec3 {-1.0f, 1.0f,   -1.0f},
+        glm::vec3 { 1.0f, 1.0f,    -1.0f},
+        glm::vec3 { 1.0f, -1.0f,  -1.0f},
+    };
+
+    for (int i = 0; i < 8; i++)
+    {
+        Vertex v;
+        v.pos = skyboxVertices[i];
+        model->addVertex(v);
+    }
+
+    //front
+    model->addIndex(0);
+    model->addIndex(1);
+    model->addIndex(2);
+    model->addIndex(2);
+    model->addIndex(3);
+    model->addIndex(0);
+     
+    //back
+    model->addIndex(4);
+    model->addIndex(7);
+    model->addIndex(6);
+    model->addIndex(4);
+    model->addIndex(6);
+    model->addIndex(5);
+
+    //up
+    model->addIndex(1);
+    model->addIndex(5);
+    model->addIndex(6);
+    model->addIndex(1);
+    model->addIndex(6);
+    model->addIndex(2);
+
+    //down
+    model->addIndex(0);
+    model->addIndex(3);
+    model->addIndex(7);
+    model->addIndex(0);
+    model->addIndex(7);
+    model->addIndex(4);
+
+    //left
+    model->addIndex(0);
+    model->addIndex(4);
+    model->addIndex(5);
+    model->addIndex(0);
+    model->addIndex(5);
+    model->addIndex(1);
+
+    //right
+    model->addIndex(3);
+    model->addIndex(2);
+    model->addIndex(6);
+    model->addIndex(3);
+    model->addIndex(6);
+    model->addIndex(7);
+
+    model->Calculate_uv_planar(true);
     model->SendVertexData();
     return model;
 }

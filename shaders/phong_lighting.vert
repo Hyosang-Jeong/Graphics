@@ -7,10 +7,10 @@ Purpose: phong lighting vertex shader for 3d object
 Language: glsl
 Platform: Microsoft Visual Studio2019, Windows
 Project:  Hyosang Jung_CS300_1
+
 Author: Hyosang Jung, hyosang.jung, 055587
 Creation date: 2022 - 09 - 12
 End Header --------------------------------------------------------*/
-
 
 #version 450 core
 

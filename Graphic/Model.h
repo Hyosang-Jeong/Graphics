@@ -124,6 +124,6 @@ public:
 Model* create_sphere(int stacks, int sector);
 Model* create_plane(int stacks, int slices);
 Model* load_obj(const char* path);
-
+Model* create_cubeMap();
 
 

@@ -2,17 +2,27 @@
 Copyright (C) 2022 DigiPen Institute of Technology.
 Reproduction or disclosure of this file or its contents without the prior written
 consent of DigiPen Institute of Technology is prohibited.
-File Name: Image.h
-Purpose: Image load
-Language: c++ Microsoft Visual Studio
+File Name: skybox.vert
+Purpose: vertex shader for skybox
+Language: glsl
 Platform: Microsoft Visual Studio2019, Windows
-Project:  Hyosang Jung_CS300_2
+Project:  Hyosang Jung_CS300_1
 Author: Hyosang Jung, hyosang.jung, 055587
-Creation date: 2022 - 10 - 28
+Creation date: 2022 - 11 - 12
 End Header --------------------------------------------------------*/
-#ifndef IMAGE_H
-#define IMAGE_H
+#version 450 core
 
-unsigned int load_ppm(const char* path);
-unsigned int load_image(const char* path);
-#endif // !IMAGE_H
+layout (location = 0) in vec3 pos;
+layout (location = 2) in vec2 uv;
+uniform mat4 projection;
+
+out vec2 TexCoords;
+out vec3 aPos;
+
+void main(void) 
+{
+    aPos = pos;
+    TexCoords = uv;
+    gl_Position = projection * vec4(pos, 1.0);
+}
+
